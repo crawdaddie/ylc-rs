@@ -1,0 +1,22 @@
+type Point = struct (
+    double x,
+    double y,
+)
+
+let printf = extern fn (str fmt, ...) int 
+
+let Point p = (
+    x = 2.0,
+    y = 1.0,
+)
+
+
+p.x = 3.0
+let Point q
+
+printf("point x: %f\n", p.x)
+printf("point y: %f\n", p.y)
+
+
+
+
