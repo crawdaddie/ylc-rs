@@ -27,7 +27,7 @@ fn main() -> Result<(), io::Error> {
 
     let file_path = &args[1];
     // let file_contents = read_file_to_string(file_path)?;
-    let file_contents = String::from("= 1 + 212.3");
+    let file_contents = String::from("= 1 + 212.3\n12322 \"adcfdsf\"");
 
     let mut l = Lexer::new(file_contents);
 
