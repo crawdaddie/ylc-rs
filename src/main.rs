@@ -2,8 +2,10 @@ use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
+mod parser;
+use lexer::Lexer;
+use parser::Parser;
 mod lexer;
-use lexer::{Lexer, Token};
 
 fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
     let path = Path::new(file_path);
@@ -29,16 +31,8 @@ fn main() -> Result<(), io::Error> {
     let file_contents = read_file_to_string(file_path)?;
     // let file_contents = String::from("= 1 + 212.3\n12322 \"adcfdsf\"");
 
-    let mut l = Lexer::new(file_contents);
-
-    loop {
-        let token = l.scan_token();
-        if token != Token::Eof {
-            println!("{:?}", token);
-        } else {
-            break;
-        }
-    }
-
+    let lexer = Lexer::new(file_contents);
+    let mut p = Parser::new(lexer);
+    p.parse_program();
     Ok(())
 }

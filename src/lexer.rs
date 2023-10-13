@@ -1,6 +1,6 @@
-use std::cmp;
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
+    Start,
     Lp, // parens
     Rp,
     LeftBrace,
@@ -58,6 +58,7 @@ pub enum Token {
     Import,
     Ampersand,
     LogicalAnd,
+    LogicalOr,
     Question,
     Colon,
 }
@@ -98,8 +99,9 @@ impl Lexer {
     }
 
     pub fn scan_token(&mut self) -> Token {
-        if (self.read_position >= self.input.len()) {
-            return Token::Eof;
+        match self.read_position >= self.input.len() {
+            true => return Token::Eof,
+            false => (),
         }
 
         self.skip_whitespace();
@@ -130,8 +132,22 @@ impl Lexer {
             ')' => Token::Rp,
             '[' => Token::LeftSq,
             ']' => Token::RightSq,
+            '%' => Token::Modulo,
+            '|' => match self.peek() {
+                '|' => {
+                    self.advance(1);
+                    Token::LogicalOr
+                }
+                _ => Token::Bar,
+            },
             '\n' => Token::Nl,
-            '!' => Token::Bang,
+            '!' => match self.peek() {
+                '=' => {
+                    self.advance(1);
+                    Token::NotEqual
+                }
+                _ => Token::Bang,
+            },
             '?' => Token::Question,
             '.' => match (self.peek(), self.peek()) {
                 ('.', '.') => {
@@ -197,18 +213,12 @@ impl Lexer {
             number_str.push(c);
         }
 
-        let (tok, num) = match num_dots {
-            0 => (
-                Token::Integer(number_str.parse::<i64>().unwrap()),
-                number_str.len(),
-            ),
-            1 => (
-                Token::Number(number_str.parse::<f64>().unwrap()),
-                number_str.len(),
-            ),
-            _ => (Token::Error, number_str.len()),
+        let tok = match num_dots {
+            0 => Token::Integer(number_str.parse::<i64>().unwrap()),
+            1 => Token::Number(number_str.parse::<f64>().unwrap()),
+            _ => Token::Error,
         };
-        self.advance(num);
+        self.advance(number_str.len());
         tok
     }
 
@@ -249,11 +259,11 @@ impl Lexer {
         tok
     }
 
-    fn scan_identifier(&mut self) -> Token {
-        let s = self.read_identifier();
-        self.advance(s.len());
-        Token::Identifier(s)
-    }
+    // fn scan_identifier(&mut self) -> Token {
+    //     let s = self.read_identifier();
+    //     self.advance(s.len());
+    //     Token::Identifier(s)
+    // }
     fn read_identifier(&self) -> String {
         let mut s = String::new();
         for char_index in self.read_position..self.input.len() {
