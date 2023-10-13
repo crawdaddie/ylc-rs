@@ -1,8 +1,7 @@
 use std::cmp;
 #[derive(PartialEq, Debug)]
 pub enum Token {
-    Start, // dummy token
-    Lp,    // parens
+    Lp, // parens
     Rp,
     LeftBrace,
     RightBrace,
@@ -12,6 +11,7 @@ pub enum Token {
 
     // operators
     Dot,
+    DoubleDot,
     TripleDot,
     Minus,
     Plus,
@@ -48,8 +48,6 @@ pub enum Token {
     While,
     Nil,
 
-    Comment,
-    Ws,
     Error,
     Eof,
     Bar,
@@ -113,15 +111,72 @@ impl Lexer {
                     self.advance(1);
                     Token::Equality
                 }
+
+                '>' => {
+                    self.advance(1);
+                    Token::Pipe
+                }
                 _ => Token::Assignment,
             },
             '+' => Token::Plus,
+            '-' => Token::Minus,
+            '/' => Token::Slash,
+            '*' => Token::Star,
+            ',' => Token::Comma,
+            ':' => Token::Colon,
+            '{' => Token::LeftBrace,
+            '}' => Token::RightBrace,
+            '(' => Token::Lp,
+            ')' => Token::Rp,
+            '[' => Token::LeftSq,
+            ']' => Token::RightSq,
+            '\n' => Token::Nl,
+            '!' => Token::Bang,
+            '?' => Token::Question,
+            '.' => match (self.peek(), self.peek()) {
+                ('.', '.') => {
+                    self.advance(2);
+                    Token::TripleDot
+                }
+                ('.', _) => {
+                    self.advance(1);
+                    Token::DoubleDot
+                }
+                (_, _) => Token::Dot,
+            },
+            // Token::Dot,
+            '&' => match self.peek() {
+                '&' => {
+                    self.advance(1);
+                    Token::LogicalAnd
+                }
+                _ => Token::Ampersand,
+            },
+
+            '<' => match self.peek() {
+                '=' => {
+                    self.advance(1);
+                    Token::Lte
+                }
+                _ => Token::Lt,
+            },
+
+            '>' => match self.peek() {
+                '=' => {
+                    self.advance(1);
+                    Token::Gte
+                }
+                _ => Token::Gt,
+            },
+
             '"' => self.scan_string(),
             _ => {
                 if is_digit(self.ch) {
                     self.scan_number()
+                } else if self.ch.is_alphabetic() {
+                    self.scan_keyword()
                 } else {
-                    Token::Eof
+                    Token::Error
                 }
             }
         };
@@ -171,6 +226,45 @@ impl Lexer {
         self.advance(s.len());
         Token::String(s)
     }
+    fn scan_keyword(&mut self) -> Token {
+        let kw = self.read_identifier();
+        let tok = match kw.as_str() {
+            "fn" => Token::Fn,
+            "return" => Token::Return,
+            "true" => Token::True,
+            "false" => Token::False,
+            "let" => Token::Let,
+            "if" => Token::If,
+            "else" => Token::Else,
+            "while" => Token::While,
+            "nil" => Token::Nil,
+            "match" => Token::Match,
+            "extern" => Token::Extern,
+            "struct" => Token::Struct,
+            "type" => Token::Type,
+            "import" => Token::Import,
+            id => Token::Identifier(id.into()),
+        };
+        self.advance(kw.len() - 1);
+        tok
+    }
+
+    fn scan_identifier(&mut self) -> Token {
+        let s = self.read_identifier();
+        self.advance(s.len());
+        Token::Identifier(s)
+    }
+    fn read_identifier(&self) -> String {
+        let mut s = String::new();
+        for char_index in self.read_position..self.input.len() {
+            let c = self.input[char_index];
+            if !c.is_alphanumeric() {
+                break;
+            }
+            s.push(c);
+        }
+        s
+    }
     fn skip_whitespace(&mut self) {
         if self.read_position == self.input.len() {
             return;
@@ -178,7 +272,8 @@ impl Lexer {
 
         let mut count = 0;
         for char_index in self.read_position..self.input.len() {
-            if self.input[char_index].is_whitespace() {
+            let c = self.input[char_index];
+            if c.is_whitespace() && c != '\n' {
                 count += 1;
             } else {
                 break; // Exit the loop when a non-whitespace character is encountered
@@ -202,5 +297,34 @@ impl Lexer {
             }
         }
         self.advance(count);
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn get_tokens() {
+        let input = "
+type Point = struct (
+    double x,
+    double y,
+)
+
+let printf = extern fn (str fmt, ...) int 
+
+let Point p = (
+    x = 2.0,
+    y = 1.0,
+)
+
+
+p.x = 3.0
+let Point q
+
+printf(\"point x: %f\n\", p.x)
+printf(\"point y: %f\n\", p.y)
+
+";
+        // let mut lexer = Lexer::new(input.to_string());
     }
 }
