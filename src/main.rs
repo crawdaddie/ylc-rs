@@ -1,11 +1,18 @@
-use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
-mod parser;
-use lexer::Lexer;
-use parser::Parser;
+
+use clap::Parser;
+mod codegen;
 mod lexer;
+mod parser;
+
+#[derive(Default, clap::Parser, Debug)]
+struct Arguments {
+    #[clap(long, short, action)]
+    code: bool,
+    input: String,
+}
 
 fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
     let path = Path::new(file_path);
@@ -19,20 +26,15 @@ fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
 
 fn main() -> Result<(), io::Error> {
     // Parse command-line arguments
-    let args: Vec<String> = env::args().collect();
+    let args = Arguments::parse();
 
-    // Check that the user provided an argument for the file path
-    if args.len() != 2 {
-        eprintln!("Usage: {} <file_path>", args[0]);
-        std::process::exit(1);
-    }
-
-    let file_path = &args[1];
-    let file_contents = read_file_to_string(file_path)?;
+    let file_contents = match args.code {
+        true => args.input,
+        false => read_file_to_string(args.input.as_str())?,
+    };
     // let file_contents = String::from("= 1 + 212.3\n12322 \"adcfdsf\"");
+    parser::parse(file_contents);
+    codegen::codegen();
 
-    let lexer = Lexer::new(file_contents);
-    let mut p = Parser::new(lexer);
-    p.parse_program();
     Ok(())
 }

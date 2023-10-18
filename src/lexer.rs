@@ -65,10 +65,12 @@ pub enum Token {
 }
 
 pub struct Lexer {
-    input: Vec<char>,         // Source code
-    pub position: usize,      // Reading position
+    input: Vec<char>, // Source code
+    // pub position: usize,      // Reading position
     pub read_position: usize, // Current moving reading position
     pub ch: char,             // Current read character
+    pub line: usize,
+    pub col: usize,
 }
 fn is_digit(ch: char) -> bool {
     '0' <= ch && ch <= '9'
@@ -79,20 +81,23 @@ impl Lexer {
         let ch = chars[0];
         let s = Self {
             input: chars,
-            position: 0,
+            // position: 0,
             read_position: 0,
             ch,
+            line: 0,
+            col: 0,
         };
         s
     }
 
     pub fn advance(&mut self, num: usize) {
-        self.position = self.read_position;
+        // self.position = self.read_position;
         self.read_position = self.read_position + num;
         if (self.read_position >= self.input.len()) {
             return;
         }
-        self.ch = self.input[self.read_position]
+        self.col += num;
+        self.ch = self.input[self.read_position];
     }
 
     pub fn peek(&mut self) -> char {
@@ -101,7 +106,9 @@ impl Lexer {
 
     pub fn scan_token(&mut self) -> Token {
         match self.read_position >= self.input.len() {
-            true => return Token::Eof,
+            true => {
+                return Token::Eof;
+            }
             false => (),
         }
 
@@ -141,7 +148,11 @@ impl Lexer {
                 }
                 _ => Token::Bar,
             },
-            '\n' => Token::Nl,
+            '\n' => {
+                self.col = 0;
+                self.line += 1;
+                Token::Nl
+            }
             '!' => match self.peek() {
                 '=' => {
                     self.advance(1);
@@ -203,6 +214,7 @@ impl Lexer {
     fn scan_number(&mut self) -> Token {
         let mut number_str = String::new();
         let mut num_dots = 0;
+
         for char_index in self.read_position..self.input.len() {
             let c = self.input[char_index];
             if !(is_digit(c) || c == '.') {
@@ -219,7 +231,8 @@ impl Lexer {
             1 => Token::Number(number_str.parse::<f64>().unwrap()),
             _ => Token::Error,
         };
-        self.advance(number_str.len());
+        self.advance(number_str.len() - 1);
+
         tok
     }
 
@@ -284,7 +297,7 @@ impl Lexer {
         let mut count = 0;
         for char_index in self.read_position..self.input.len() {
             let c = self.input[char_index];
-            if c.is_whitespace() && c != '\n' {
+            if c.is_whitespace() {
                 count += 1;
             } else {
                 break; // Exit the loop when a non-whitespace character is encountered
@@ -313,6 +326,7 @@ impl Lexer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[ignore]
     #[test]
     fn get_tokens() {
         let input = "
@@ -337,5 +351,21 @@ printf(\"point y: %f\n\", p.y)
 
 ";
         // let mut lexer = Lexer::new(input.to_string());
+    }
+
+    #[test]
+    fn get_paren_expr() {
+        let input = r#"(1 + 1)"#;
+        let mut lexer = Lexer::new(input.to_string());
+        for expect in vec![
+            Token::Lp,
+            Token::Integer(1),
+            Token::Plus,
+            Token::Integer(1),
+            Token::Rp,
+        ] {
+            let tok = lexer.scan_token();
+            assert_eq!(expect, tok);
+        }
     }
 }
