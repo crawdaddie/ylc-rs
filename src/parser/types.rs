@@ -60,28 +60,30 @@ pub enum Literal {
     Bool(bool),
     String(String),
 }
+// #[derive(Debug, PartialEq, Clone)]
+// pub struct Identifier(pub String);
+pub type Identifier = String;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Id(Identifier),
     Literal(Literal),
-    Function,
     Binop(Token, Box<Expression>, Box<Expression>),
     Unop(Token, Box<Expression>),
     Tuple(Vec<Expression>),
     Index(Box<Expression>, Box<Expression>),
-    Assignment(Identifier, Box<Expression>),
+    Assignment(Box<Expression>, Box<Expression>),
+    Fn(Box<Expression>, Option<Box<Expression>>, Vec<Statement>),
 }
-#[derive(Debug, PartialEq, Clone)]
-pub struct Identifier(pub String);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Let(
         Identifier,
-        Option<Identifier>, // optional explicit type parameter
-        Option<Expression>,
+        Option<Expression>, // optional explicit type parameter
+        Option<Expression>, // optional immediate assignment expression
     ),
+
     FnDeclaration(Identifier, Expression),
     TypeDeclaration(Identifier, Expression),
     Expression(Expression),
