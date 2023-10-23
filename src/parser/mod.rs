@@ -1,45 +1,241 @@
 use crate::lexer;
+use crate::symbols::Ttype;
 use lexer::{Lexer, Token};
-pub mod types;
-use types::*;
+
+/*
+    AST_INTEGER,
+    AST_NUMBER,
+    AST_BOOL,
+    AST_STRING,
+    AST_ADD,
+    AST_SUBTRACT,
+    AST_MUL,
+    AST_DIV,
+    AST_MAIN,
+    AST_UNOP,
+    AST_BINOP,
+    AST_EXPRESSION,
+    AST_STATEMENT,
+    AST_STATEMENT_LIST,
+    AST_FN_DECLARATION,
+    AST_ASSIGNMENT,
+    AST_IDENTIFIER,
+    AST_SYMBOL_DECLARATION,
+    AST_FN_PROTOTYPE,
+    AST_CALL,
+    AST_TUPLE,
+    AST_IF_ELSE,
+    AST_MATCH,
+    AST_STRUCT,
+    AST_TYPE_DECLARATION,
+    AST_MEMBER_ACCESS,
+    AST_MEMBER_ASSIGNMENT,
+    AST_INDEX_ACCESS,
+    AST_IMPORT,
+    AST_IMPORT_LIB,
+    AST_VAR_ARG,
+    AST_CURRIED_FN,
+    AST_ARRAY,
+*/
+
+#[derive(PartialEq, PartialOrd, Debug, Clone)]
+pub enum Precedence {
+    None,
+    Assignment, // =
+    Or,         // or
+    And,        // and
+    Equality,   // == !=
+    Comparison, // < > <= >=
+    Pipe,       // ->
+    Term,       // + -
+    Factor,     // * /
+    Unary,      // ! -
+    Call,       // . ()
+    Index,      // []
+    Primary,
+}
+// #[derive(Debug, PartialEq, Clone)]
+// pub struct Identifier(pub String);
+pub type Identifier = String;
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct BinopExpr {
+    pub token: Token,
+    pub left: Box<Ast>,
+    pub right: Box<Ast>,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnopExpr {
+    pub token: Token,
+    pub operand: Box<Ast>,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FnExpr {
+    pub args: Vec<Ast>,
+    pub return_type: Option<Box<Ast>>,
+    pub body: Vec<Ast>,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct AssignmentExpr {
+    pub assignee: Box<Ast>,
+    pub expr: Box<Ast>,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IndexExpr {
+    pub object: Box<Ast>,
+    pub index: Box<Ast>,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct TupleExpr {
+    pub members: Vec<Ast>,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IdExpr {
+    pub id: Identifier,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IntExpr {
+    pub value: i64,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct NumExpr {
+    pub value: f64,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct BoolExpr {
+    pub value: bool,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StrExpr {
+    pub value: String,
+    pub ttype: Ttype,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Ast {
+    // statements
+    Let(
+        Identifier,
+        Option<Box<Ast>>, // optional explicit type parameter
+        //
+        Option<Box<Ast>>, // optional immediate assignment expression
+    ),
+    FnDeclaration(Identifier, FnExpr),
+    TypeDeclaration(Identifier, Box<Ast>),
+
+    //expressions
+    Id(IdExpr),
+    Binop(BinopExpr),
+    Unop(UnopExpr),
+    Tuple(TupleExpr),
+    Index(IndexExpr),
+    Assignment(AssignmentExpr),
+    Fn(FnExpr),
+
+    // literals
+    Integer(IntExpr),
+    Number(NumExpr),
+    Bool(BoolExpr),
+    String(StrExpr),
+}
+
+fn tvar() -> Ttype {
+    Ttype::Var("".into())
+}
+
+pub type Block = Vec<Ast>;
+pub type Program = Block;
 
 macro_rules! int_expr {
     ($value:expr) => {
-        Expression::Literal(Literal::Integer($value))
+        Ast::Integer(IntExpr {
+            value: $value,
+            ttype: Ttype::Int,
+        })
     };
 }
 macro_rules! num_expr {
     ($value:expr) => {
-        Expression::Literal(Literal::Number($value))
+        Ast::Number(NumExpr {
+            value: $value,
+            ttype: Ttype::Num,
+        })
     };
 }
 
 macro_rules! str_expr {
     ($value:expr) => {
-        Expression::Literal(Literal::String($value))
+        Ast::String(StrExpr {
+            value: $value,
+            ttype: Ttype::Str,
+        })
     };
 }
 
 macro_rules! bool_expr {
     ($value:expr) => {
-        Expression::Literal(Literal::Bool($value))
+        Ast::Bool(BoolExpr {
+            value: $value,
+            ttype: Ttype::Bool,
+        })
     };
 }
 macro_rules! id_expr {
     ($value:expr) => {
-        Expression::Id($value.into())
+        Ast::Id(IdExpr {
+            id: $value.into(),
+            ttype: tvar(),
+        })
+    };
+}
+
+macro_rules! tuple_expr {
+    ($values:expr) => {
+        Ast::Tuple(TupleExpr {
+            members: $values,
+            ttype: tvar(),
+        })
     };
 }
 
 macro_rules! binop_expr {
     ($op:expr,$l:expr,$r:expr) => {
-        Expression::Binop($op, Box::new($l), Box::new($r))
+        Ast::Binop(BinopExpr {
+            token: $op,
+            left: Box::new($l),
+            right: Box::new($r),
+            ttype: tvar(),
+        })
     };
 }
 
 macro_rules! unop_expr {
     ($op:expr,$operand:expr) => {
-        Expression::Unop($op, Box::new($operand))
+        Ast::Unop(UnopExpr {
+            token: $op,
+            operand: Box::new($operand),
+            ttype: tvar(),
+        })
     };
 }
 
@@ -73,23 +269,17 @@ impl Parser {
         self.current = self.lexer.scan_token()
     }
 
-    fn parse_statement(&mut self) -> Option<Statement> {
+    fn parse_statement(&mut self) -> Option<Ast> {
         match &self.current {
             Token::Let => self.parse_let_statement(),
             // Token::Identifier(id) => self.parse_assignment_statement(id.clone()),
             Token::Type => self.parse_type_declaration(),
             // Token::Nl => None,
-            _ => {
-                if let Some(exp) = self.parse_expression(Precedence::None) {
-                    Some(Statement::Expression(exp))
-                } else {
-                    None
-                }
-            }
+            _ => self.parse_expression(Precedence::None),
         }
     }
 
-    fn parse_assignment_expression(&mut self, id: Option<Expression>) -> Option<Expression> {
+    fn parse_assignment_expression(&mut self, id: Option<Ast>) -> Option<Ast> {
         self.advance();
         println!("parse assignment: ");
         self.print_current();
@@ -99,10 +289,11 @@ impl Parser {
         };
 
         match self.parse_expression(Precedence::None) {
-            Some(expr) => Some(Expression::Assignment(
-                Box::new(id.unwrap()),
-                Box::new(expr),
-            )),
+            Some(expr) => Some(Ast::Assignment(AssignmentExpr {
+                assignee: Box::new(id.unwrap()),
+                expr: Box::new(expr),
+                ttype: tvar(),
+            })),
             _ => None,
         }
     }
@@ -121,7 +312,7 @@ impl Parser {
     //     };
     // }
 
-    fn parse_let_statement(&mut self) -> Option<Statement> {
+    fn parse_let_statement(&mut self) -> Option<Ast> {
         self.advance();
         let id1 = match self.parse_identifier() {
             Some(id) => id.clone(),
@@ -130,26 +321,23 @@ impl Parser {
         let id2 = self.parse_identifier();
         if self.expect_token(Token::Assignment) {
             return match self.current {
-                Token::Fn => Some(Statement::FnDeclaration(
-                    id1,
-                    self.parse_fn_expression().unwrap(),
-                )),
+                Token::Fn => Some(Ast::FnDeclaration(id1, self.parse_fn_expression().unwrap())),
 
-                _ => Some(Statement::Let(
+                _ => Some(Ast::Let(
                     id2.clone().unwrap_or(id1.clone()),
                     if id2.is_some() {
-                        Some(id_expr!(id1))
+                        Some(Box::new(id_expr!(id1)))
                     } else {
                         None
                     },
-                    self.parse_expression(Precedence::None),
+                    Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
                 )),
             };
         } else {
-            return Some(Statement::Let(
+            return Some(Ast::Let(
                 id2.clone().unwrap_or(id1.clone()),
                 if id2.is_some() {
-                    Some(id_expr!(id1))
+                    Some(Box::new(id_expr!(id1)))
                 } else {
                     None
                 },
@@ -167,7 +355,7 @@ impl Parser {
         id
     }
 
-    fn parse_type_declaration(&mut self) -> Option<Statement> {
+    fn parse_type_declaration(&mut self) -> Option<Ast> {
         None
     }
     fn token_to_precedence(&self, tok: &Token) -> Precedence {
@@ -185,11 +373,11 @@ impl Parser {
             _ => Precedence::None,
         }
     }
-    fn parse_call(&self, expr: Expression) -> Option<Expression> {
+    fn parse_call(&self, expr: Ast) -> Option<Ast> {
         return None;
     }
 
-    fn parse_infix_expr(&mut self, left: Option<Expression>) -> Option<Expression> {
+    fn parse_infix_expr(&mut self, left: Option<Ast>) -> Option<Ast> {
         let tok = self.current.clone();
         let precedence = self.token_to_precedence(&tok);
 
@@ -204,7 +392,7 @@ impl Parser {
         }
     }
 
-    fn parse_prefix_expr(&mut self) -> Option<Expression> {
+    fn parse_prefix_expr(&mut self) -> Option<Ast> {
         let tok = self.current.clone();
 
         let precedence = self.token_to_precedence(&tok);
@@ -214,7 +402,7 @@ impl Parser {
             None => None,
         }
     }
-    fn parse_tuple(&mut self, first: Option<Expression>) -> Option<Expression> {
+    fn parse_tuple(&mut self, first: Option<Ast>) -> Option<Ast> {
         if first.is_none() {
             return None;
         }
@@ -230,21 +418,22 @@ impl Parser {
         }
         self.advance(); // move past Rp
 
-        Some(Expression::Tuple(exprs))
+        Some(tuple_expr!(exprs))
     }
 
-    fn parse_index_expr(&mut self, obj: Option<Expression>) -> Option<Expression> {
+    fn parse_index_expr(&mut self, obj: Option<Ast>) -> Option<Ast> {
         self.advance();
         match self.parse_expression(Precedence::None) {
-            Some(index_expr) => Some(Expression::Index(
-                Box::new(obj.unwrap()),
-                Box::new(index_expr),
-            )),
+            Some(index_expr) => Some(Ast::Index(IndexExpr {
+                object: Box::new(obj.unwrap()),
+                index: Box::new(index_expr),
+                ttype: tvar(),
+            })),
             None => None,
         }
     }
 
-    fn parse_grouping(&mut self) -> Option<Expression> {
+    fn parse_grouping(&mut self) -> Option<Ast> {
         self.advance();
         let expr = self.parse_expression(Precedence::None);
 
@@ -262,30 +451,40 @@ impl Parser {
             self.advance();
         }
     }
-    fn parse_type_expression(&mut self) -> Option<Expression> {
+    fn parse_type_expression(&mut self) -> Option<Ast> {
         None
     }
 
-    fn parse_fn_expression(&mut self) -> Option<Expression> {
+    fn parse_fn_args(&mut self) -> Vec<Ast> {
+        let mut exprs = vec![];
+        self.advance();
+
+        while self.current != Token::Rp {
+            self.skip_token(Token::Comma);
+            if let Some(expr) = self.parse_expression(Precedence::None) {
+                exprs.push(expr);
+            }
+        }
+        self.advance(); // move past Rp
+
+        exprs
+    }
+
+    fn parse_fn_expression(&mut self) -> Option<FnExpr> {
         self.advance();
 
         if self.current != Token::Lp {
             return None;
         };
-
-        let signature = if let Some(sig) = self.parse_grouping() {
-            sig
-        } else {
-            return None;
-        };
+        let args = self.parse_fn_args();
 
         let return_type = if self.current != Token::LeftBrace {
-            self.parse_type_expression()
+            Some(Box::new(self.parse_type_expression().unwrap()))
         } else {
             None
         };
 
-        let mut body: Vec<Statement> = vec![];
+        let mut body: Vec<Ast> = vec![];
         if self.expect_token(Token::LeftBrace) {
             while self.current != Token::RightBrace {
                 match self.parse_statement() {
@@ -294,19 +493,15 @@ impl Parser {
                 }
             }
         }
-
-        Some(Expression::Fn(
-            Box::new(signature),
-            if return_type.is_none() {
-                None
-            } else {
-                Some(Box::new(return_type.unwrap()))
-            },
+        Some(FnExpr {
+            args,
+            return_type,
             body,
-        ))
+            ttype: tvar(),
+        })
     }
 
-    fn parse_expression(&mut self, precedence: Precedence) -> Option<Expression> {
+    fn parse_expression(&mut self, precedence: Precedence) -> Option<Ast> {
         // prefix
         let mut left = match self.current {
             Token::Integer(i) => Some(int_expr!(i)),
@@ -321,11 +516,7 @@ impl Parser {
             Token::Lp => self.parse_grouping(),
             Token::Fn => {
                 let f = self.parse_fn_expression();
-                if f.is_none() {
-                    // error - fn parsing failed
-                    return None;
-                }
-                f
+                Some(Ast::Fn(f.unwrap()))
             }
 
             // Token::If => self.parse_if_expr(),
@@ -401,8 +592,9 @@ mod tests {
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
+
         assert_eq!(
-            vec![Statement::Let("a".into(), None, Some(int_expr!(1)))],
+            vec![Ast::Let("a".into(), None, Some(Box::new(int_expr!(1))))],
             program
         )
     }
@@ -414,11 +606,12 @@ mod tests {
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
+
         assert_eq!(
-            vec![Statement::Let(
+            vec![Ast::Let(
                 "a".into(),
-                Some(id_expr!("int")),
-                Some(int_expr!(1))
+                Some(Box::new(id_expr!("int"))),
+                Some(Box::new(int_expr!(1)))
             )],
             program
         )
@@ -429,11 +622,13 @@ mod tests {
         let input = r#"a = 1 + 1"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
+
         assert_eq!(
-            vec![Statement::Expression(Expression::Assignment(
-                Box::new(id_expr!("a")),
-                Box::new(binop_expr!(Token::Plus, int_expr!(1), int_expr!(1)))
-            ))],
+            vec![Ast::Assignment(AssignmentExpr {
+                assignee: Box::new(id_expr!("a")),
+                expr: Box::new(binop_expr!(Token::Plus, int_expr!(1), int_expr!(1))),
+                ttype: tvar()
+            })],
             program
         )
     }
@@ -443,23 +638,26 @@ mod tests {
         let tests = vec![
             (
                 r#"1 + 7.0"#,
-                Statement::Expression(Expression::Binop(
-                    Token::Plus,
-                    Box::new(int_expr!(1)),
-                    Box::new(num_expr!(7.0)),
-                )),
+                Ast::Binop(BinopExpr {
+                    token: Token::Plus,
+                    left: Box::new(int_expr!(1)),
+                    right: Box::new(num_expr!(7.0)),
+                    ttype: tvar(),
+                }),
             ),
             (
                 r#"1 * (7.0 + 200)"#,
-                Statement::Expression(Expression::Binop(
-                    Token::Star,
-                    Box::new(int_expr!(1)),
-                    Box::new(Expression::Binop(
-                        Token::Plus,
-                        Box::new(num_expr!(7.0)),
-                        Box::new(int_expr!(200)),
-                    )),
-                )),
+                Ast::Binop(BinopExpr {
+                    token: Token::Star,
+                    left: Box::new(int_expr!(1)),
+                    ttype: tvar(),
+                    right: Box::new(Ast::Binop(BinopExpr {
+                        token: Token::Plus,
+                        left: Box::new(num_expr!(7.0)),
+                        right: Box::new(int_expr!(200)),
+                        ttype: tvar(),
+                    })),
+                }),
             ),
         ];
 
@@ -475,12 +673,14 @@ mod tests {
         let input = r#"(1 + 1)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
+
         assert_eq!(
-            vec![Statement::Expression(Expression::Binop(
-                Token::Plus,
-                Box::new(int_expr!(1)),
-                Box::new(int_expr!(1))
-            ))],
+            vec![Ast::Binop(BinopExpr {
+                token: Token::Plus,
+                left: Box::new(int_expr!(1)),
+                right: Box::new(int_expr!(1)),
+                ttype: tvar()
+            })],
             program
         )
     }
@@ -490,24 +690,17 @@ mod tests {
         let input = r#"(1, 1)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
-        assert_eq!(
-            vec![Statement::Expression(Expression::Tuple(vec![
-                int_expr!(1),
-                int_expr!(1)
-            ]))],
-            program
-        )
+
+        assert_eq!(vec![tuple_expr!(vec![int_expr!(1), int_expr!(1)])], program)
     }
     #[test]
     fn test_tuple_ids() {
         let input = r#"(a, b)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
+
         assert_eq!(
-            vec![Statement::Expression(Expression::Tuple(vec![
-                id_expr!("a"),
-                id_expr!("b"),
-            ]))],
+            vec![tuple_expr!(vec![id_expr!("a"), id_expr!("b"),])],
             program
         )
     }
@@ -519,13 +712,8 @@ mod tests {
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
-        assert_eq!(
-            vec![Statement::Expression(Expression::Unop(
-                Token::Minus,
-                Box::new(num_expr!(7.0))
-            ))],
-            program
-        )
+
+        assert_eq!(vec![unop_expr!(Token::Minus, num_expr!(7.0))], program)
     }
 
     #[test]
@@ -535,13 +723,8 @@ mod tests {
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
-        assert_eq!(
-            vec![Statement::Expression(Expression::Unop(
-                Token::Bang,
-                Box::new(int_expr!(1))
-            ))],
-            program
-        )
+
+        assert_eq!(vec![unop_expr!(Token::Bang, int_expr!(1))], program)
     }
 
     #[test]
@@ -551,22 +734,20 @@ mod tests {
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
+
         assert_eq!(
-            vec![Statement::FnDeclaration(
+            vec![Ast::FnDeclaration(
                 "f".into(),
-                Expression::Fn(
-                    Box::new(Expression::Tuple(vec![
-                        id_expr!("a"),
-                        id_expr!("b"),
-                        id_expr!("c"),
-                    ])),
-                    None,
-                    vec![Statement::Expression(binop_expr!(
+                FnExpr {
+                    args: vec![id_expr!("a"), id_expr!("b"), id_expr!("c"),],
+                    return_type: None,
+                    body: vec![binop_expr!(
                         Token::Plus,
                         binop_expr!(Token::Plus, id_expr!("a"), id_expr!("b")),
                         id_expr!("c")
-                    ))]
-                )
+                    )],
+                    ttype: tvar()
+                }
             )],
             program
         )

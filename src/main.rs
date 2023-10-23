@@ -10,11 +10,14 @@ use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::Module;
 use inkwell::OptimizationLevel;
+
+use crate::typecheck::infer_types;
 mod codegen;
 mod lexer;
 mod parser;
 mod repl;
 mod symbols;
+mod typecheck;
 
 #[derive(Default, clap::Parser, Debug)]
 struct Arguments {
@@ -70,7 +73,9 @@ fn main() -> Result<(), io::Error> {
         env: symbols::Env::new(),
     };
 
-    let program = parser::parse(file_contents);
+    let mut program = parser::parse(file_contents);
+    infer_types(&mut program);
+
     ctx.env.push();
     if codegen_program(program, &mut ctx).is_ok() {
         ctx.module.print_to_stderr();
