@@ -1,10 +1,9 @@
 use inkwell::execution_engine::{JitFunction, UnsafeFunctionPointer};
-use inkwell::values::{AnyValueEnum, BasicValueEnum, FunctionValue, GenericValue};
+use inkwell::values::FunctionValue;
 
 use std::error::Error;
 
-use crate::lexer::Token;
-use crate::parser::{Ast, FnExpr, Identifier, Program};
+use crate::parser::{Ast, Program};
 use crate::symbols::SymbolValue;
 use crate::CodegenCtx;
 
@@ -64,30 +63,30 @@ impl<'ctx> CodegenCtx<'ctx> {
 //     }
 // }
 
-fn codegen_function_decl<'ctx>(id: Identifier, fn_expr: FnExpr, ctx: &mut CodegenCtx<'ctx>) {
-    // let function = ctx.module.add_function(
-    //     id.as_str(),
-    //     ctx.context.void_type().fn_type(&[], false),
-    //     None,
-    // );
-    //
-    // let basic_block = ctx.context.append_basic_block(function, "entry");
-    // ctx.builder.position_at_end(basic_block);
-    ctx.env.bind_symbol(id, SymbolValue::Function)
-}
+// fn codegen_function_decl<'ctx>(id: Identifier, fn_expr: FnExpr, ctx: &mut CodegenCtx<'ctx>) {
+//     // let function = ctx.module.add_function(
+//     //     id.as_str(),
+//     //     ctx.context.void_type().fn_type(&[], false),
+//     //     None,
+//     // );
+//     //
+//     // let basic_block = ctx.context.append_basic_block(function, "entry");
+//     // ctx.builder.position_at_end(basic_block);
+//     ctx.env.bind_symbol(id, SymbolValue::Function)
+// }
 
-fn codegen_let<'ctx>(
-    id: Identifier,
-    type_expr: Option<Box<Ast>>,
-    expr: Option<Box<Ast>>,
-    ctx: &mut CodegenCtx<'ctx>,
-) {
-    ctx.env.bind_symbol(id, SymbolValue::Variable)
-}
+// fn codegen_let<'ctx>(
+//     id: Identifier,
+//     type_expr: Option<Box<Ast>>,
+//     expr: Option<Box<Ast>>,
+//     ctx: &mut CodegenCtx<'ctx>,
+// ) {
+//     ctx.env.bind_symbol(id, SymbolValue::Variable)
+// }
 
-fn codegen_type_decl<'ctx>(id: Identifier, expr: Box<Ast>, ctx: &mut CodegenCtx<'ctx>) {
-    ctx.env.bind_symbol(id, SymbolValue::TypeDecl)
-}
+// fn codegen_type_decl<'ctx>(id: Identifier, expr: Box<Ast>, ctx: &mut CodegenCtx<'ctx>) {
+//     ctx.env.bind_symbol(id, SymbolValue::TypeDecl)
+// }
 
 pub fn codegen_program<'ctx>(
     program: Program,
@@ -102,9 +101,9 @@ pub fn codegen_program<'ctx>(
 
     for stmt in program {
         match stmt {
-            Ast::Let(id, t, expr) => codegen_let(id.id, t, expr, ctx),
-            Ast::FnDeclaration(id, fn_expr) => codegen_function_decl(id, fn_expr, ctx),
-            Ast::TypeDeclaration(id, expr) => codegen_type_decl(id, expr, ctx),
+            // Ast::Let(id, t, expr) => codegen_let(id.id, t, expr, ctx),
+            // Ast::FnDeclaration(id, fn_expr) => codegen_function_decl(id, fn_expr, ctx),
+            // Ast::TypeDeclaration(id, expr) => codegen_type_decl(id, expr, ctx),
             // Ast::Ast(expr) => codegen_expression(expr, ctx),
             _ => {}
         }
