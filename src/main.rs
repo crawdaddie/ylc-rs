@@ -76,6 +76,8 @@ fn main() -> Result<(), io::Error> {
     let mut program = parser::parse(file_contents);
     infer_types(&mut program);
 
+    println!("{:?}", program);
+
     ctx.env.push();
     if codegen_program(program, &mut ctx).is_ok() {
         ctx.module.print_to_stderr();

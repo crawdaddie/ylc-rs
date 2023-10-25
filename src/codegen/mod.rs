@@ -102,7 +102,7 @@ pub fn codegen_program<'ctx>(
 
     for stmt in program {
         match stmt {
-            Ast::Let(id, t, expr) => codegen_let(id, t, expr, ctx),
+            Ast::Let(id, t, expr) => codegen_let(id.id, t, expr, ctx),
             Ast::FnDeclaration(id, fn_expr) => codegen_function_decl(id, fn_expr, ctx),
             Ast::TypeDeclaration(id, expr) => codegen_type_decl(id, expr, ctx),
             // Ast::Ast(expr) => codegen_expression(expr, ctx),

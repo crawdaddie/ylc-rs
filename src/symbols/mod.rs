@@ -1,20 +1,29 @@
 use std::collections::HashMap;
 
+use crate::parser::Ast;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum Numeric {
+    Int8 = 0, // int8 - alias char
+    Int = 1,  // int
+    Num = 2,  // double
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
 pub enum Ttype {
-    Var(String), // 'x
-    Int8,        // int8 - alias char
-    Int,         // int
-    Num,         // double
-    Str,         // str
-    Bool,        // bool
-    Tuple,       // struct or tuple
-    Struct,      // struct or tuple
-    Void,        // void
-    Fn,          // t1 -> t2 -> ... -> return_type
-    Ptr,         // &'x
-    Array,       // 't[n]
+    Numeric(Numeric),
+    Str,               // str
+    Bool,              // bool
+    Tuple(Vec<Ttype>), // struct or tuple
+    Struct,            // struct or tuple
+    Void,              // void
+    Fn,                // t1 -> t2 -> ... -> return_type
+    Ptr,               // &'x
+    Array,             // 't[n]
     Uptr,
+    Var(String), // 'x
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
