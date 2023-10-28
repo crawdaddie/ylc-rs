@@ -21,7 +21,7 @@ pub enum Ttype {
     Void,              // void
     Fn,                // t1 -> t2 -> ... -> return_type
     Ptr,               // &'x
-    Array,             // 't[n]
+    Array(Box<Ttype>), // 't[n]
     Uptr,
     Var(String), // 'x
 }

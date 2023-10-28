@@ -1,7 +1,6 @@
 use crate::lexer;
 use crate::symbols::{Numeric, Ttype};
 use lexer::{Lexer, Token};
-
 /*
     AST_INTEGER,
     AST_NUMBER,
@@ -37,7 +36,6 @@ use lexer::{Lexer, Token};
     AST_CURRIED_FN,
     AST_ARRAY,
 */
-
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Precedence {
     None,
@@ -80,8 +78,9 @@ pub enum Expr {
     Index(Box<Expr>, Box<Expr>, Ttype),
     Assignment(Box<Expr>, Box<Expr>, Ttype),
     Fn(Vec<Expr>, Option<Box<Expr>>, Vec<Ast>, Ttype),
+    Call(Box<Expr>, Vec<Expr>, Ttype),
     Body(Vec<Ast>, Ttype),
-    If(Box<Expr>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
+    If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
     // literals
     Int8(i8),
     Integer(i64),
@@ -90,44 +89,57 @@ pub enum Expr {
     String(String),
 }
 
-// #[derive(Debug, PartialEq, Clone)]
-// pub enum Ast {
-//     Stmt(Stmt), // statements
-// }
-
-impl Expr {
-    pub fn get_ttype(&self) -> Option<&Ttype> {
+impl Ast {
+    pub fn get_ttype(&self) -> Option<Ttype> {
         match self {
-            Expr::Id(_, t)
-            | Expr::Binop(_, _, _, t)
-            | Expr::Unop(_, _, t)
-            | Expr::Tuple(_, t)
-            | Expr::Index(_, _, t)
-            | Expr::Assignment(_, _, t)
-            | Expr::Fn(_, _, _, t)
-            | Expr::Body(_, t)
-            | Expr::If(_, _, _, t) => Some(t),
+            Ast::Expr(e) => {
+                match e {
+                    Expr::Id(_, t)
+                    | Expr::Binop(_, _, _, t)
+                    | Expr::Unop(_, _, t)
+                    | Expr::Tuple(_, t)
+                    | Expr::Index(_, _, t)
+                    | Expr::Assignment(_, _, t)
+                    | Expr::Fn(_, _, _, t)
+                    | Expr::Body(_, t)
+                    | Expr::Call(_, _, t)
+                    | Expr::If(_, _, _, t) => Some(t.clone()),
 
-            // literals
-            Expr::Int8(_) => Some(&Ttype::Numeric(Numeric::Int8)),
-            Expr::Integer(_) => Some(&Ttype::Numeric(Numeric::Int)),
-            Expr::Number(_) => Some(&Ttype::Numeric(Numeric::Num)),
-            Expr::Bool(_) => Some(&Ttype::Bool),
-            Expr::String(_) => Some(&Ttype::Str),
+                    // literals
+                    Expr::Int8(_) => Some(Ttype::Numeric(Numeric::Int8)),
+                    Expr::Integer(_) => Some(Ttype::Numeric(Numeric::Int)),
+                    Expr::Number(_) => Some(Ttype::Numeric(Numeric::Num)),
+                    Expr::Bool(_) => Some(Ttype::Bool),
+                    Expr::String(_) => Some(Ttype::Str),
+                }
+            }
+            _ => None,
         }
     }
 
     pub fn set_ttype(&mut self, t: Ttype) {
         match self {
-            Expr::Id(_, ref mut ttype)
-            | Expr::Binop(_, _, _, ref mut ttype)
-            | Expr::Unop(_, _, ref mut ttype)
-            | Expr::Tuple(_, ref mut ttype)
-            | Expr::Index(_, _, ref mut ttype)
-            | Expr::Assignment(_, _, ref mut ttype)
-            | Expr::Fn(_, _, _, ref mut ttype)
-            | Expr::Body(_, ref mut ttype)
-            | Expr::If(_, _, _, ref mut ttype) => *ttype = t,
+            Ast::Expr(e) => match e {
+                Expr::Id(_, ref mut ttype)
+                | Expr::Binop(_, _, _, ref mut ttype)
+                | Expr::Unop(_, _, ref mut ttype)
+                | Expr::Tuple(_, ref mut ttype)
+                | Expr::Index(_, _, ref mut ttype)
+                | Expr::Assignment(_, _, ref mut ttype)
+                | Expr::Fn(_, _, _, ref mut ttype)
+                | Expr::Body(_, ref mut ttype)
+                | Expr::Call(_, _, ref mut ttype)
+                | Expr::If(_, _, _, ref mut ttype) => match ttype {
+                    Ttype::Var(n) => {
+                        if n == "" {
+                            *ttype = t
+                        }
+                    }
+                    _ => {}
+                },
+
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -140,11 +152,13 @@ fn tvar() -> Ttype {
 pub type Block = Vec<Ast>;
 pub type Program = Block;
 
+#[macro_export]
 macro_rules! int_expr {
     ($value:expr) => {
         Expr::Integer($value)
     };
 }
+
 macro_rules! num_expr {
     ($value:expr) => {
         Expr::Number($value)
@@ -157,25 +171,41 @@ macro_rules! str_expr {
     };
 }
 
+#[macro_export]
 macro_rules! bool_expr {
     ($value:expr) => {
         Expr::Bool($value)
     };
 }
+
 macro_rules! id_expr {
     ($value:expr) => {
         Expr::Id($value.into(), tvar())
     };
+
+    ($value:expr, $var: expr) => {
+        Expr::Id($value.into(), $var)
+    };
 }
 
+#[macro_export]
 macro_rules! tuple_expr {
     ($values:expr) => {
         Expr::Tuple($values, tvar())
     };
+
+    ($values:expr, $var:expr) => {
+        Expr::Tuple($values, $var)
+    };
 }
+
 macro_rules! binop_expr {
     ($op:expr,$l:expr,$r:expr) => {
         Expr::Binop($op, Box::new($l), Box::new($r), tvar())
+    };
+
+    ($op:expr, $l:expr, $r:expr, $var:expr) => {
+        Expr::Binop($op, Box::new($l), Box::new($r), $var)
     };
 }
 
@@ -183,23 +213,46 @@ macro_rules! unop_expr {
     ($op:expr,$operand:expr) => {
         Expr::Unop($op, Box::new($operand), tvar())
     };
+
+    ($op:expr,$operand:expr, $var: expr) => {
+        Expr::Unop($op, Box::new($operand), $var)
+    };
 }
 
 macro_rules! assignment_expr {
     ($assignee:expr,$value:expr) => {
         Expr::Assignment(Box::new($assignee), Box::new($value), tvar())
     };
+
+    ($assignee:expr,$value:expr, $var:expr) => {
+        Expr::Assignment(Box::new($assignee), Box::new($value), $var)
+    };
 }
 
-// pub struct IfExpr {
-//     pub condition: Box<Ast>,
-//     pub then: Vec<Ast>,
-//     pub elze: Option<Vec<Ast>>,
-//     pub ttype: Ttype,
-// }
+#[macro_export]
 macro_rules! if_expr {
     ($cond: expr, $then: expr, $else: expr) => {
         Expr::If(Box::new($cond), $then, $else, tvar())
+    };
+
+    ($cond: expr, $then: expr, $else: expr, $var: expr) => {
+        Expr::If(Box::new($cond), $then, $else, $var)
+    };
+}
+
+macro_rules! call_expr {
+    ($callable: expr, $args: expr) => {
+        Expr::Call(Box::new($callable), $args, tvar())
+    };
+
+    ($callable: expr, $args: expr, $var: expr) => {
+        Expr::Call(Box::new($callable), $args, $var)
+    };
+}
+#[macro_export]
+macro_rules! ast_expr {
+    ($e: expr) => {
+        Ast::Expr($e)
     };
 }
 
@@ -336,9 +389,6 @@ impl Parser {
             _ => Precedence::None,
         }
     }
-    fn parse_call(&self, expr: Ast) -> Option<Ast> {
-        return None;
-    }
 
     fn parse_infix_expr(&mut self, left: Option<Expr>) -> Option<Expr> {
         let tok = self.current.clone();
@@ -440,30 +490,19 @@ impl Parser {
             None
         };
 
-        let mut body: Vec<Ast> = vec![];
-        if self.expect_token(Token::LeftBrace) {
-            while self.current != Token::RightBrace {
-                match self.parse_statement() {
-                    Some(stmt) => body.push(stmt),
-                    None => self.advance(),
-                }
-            }
-        }
+        let body = self.parse_body();
         Some(Expr::Fn(args, return_type, body, tvar()))
     }
-    fn parse_body(&mut self) -> Option<Vec<Ast>> {
-        if self.expect_token(Token::LeftBrace) {
-            let mut body = vec![];
-            while self.current != Token::RightBrace {
-                match self.parse_statement() {
-                    Some(stmt) => body.push(stmt),
-                    None => self.advance(),
-                }
+
+    fn parse_body(&mut self) -> Vec<Ast> {
+        let mut body = vec![];
+        while self.current != Token::RightBrace {
+            match self.parse_statement() {
+                Some(stmt) => body.push(stmt),
+                None => self.advance(),
             }
-            Some(body)
-        } else {
-            return None;
         }
+        body
     }
     fn parse_conditional_expr(&mut self) -> Option<Expr> {
         self.advance();
@@ -475,13 +514,7 @@ impl Parser {
         };
 
         let then = if self.expect_token(Token::LeftBrace) {
-            let mut body = vec![];
-            while self.current != Token::RightBrace {
-                match self.parse_statement() {
-                    Some(stmt) => body.push(stmt),
-                    None => self.advance(),
-                }
-            }
+            let body = self.parse_body();
 
             self.advance();
             body
@@ -494,22 +527,33 @@ impl Parser {
                 return None;
             }
 
-            let mut body = vec![];
-            while self.current != Token::RightBrace {
-                match self.parse_statement() {
-                    Some(stmt) => body.push(stmt),
-                    None => self.advance(),
-                }
-            }
+            let body = self.parse_body();
 
             self.advance();
-
             Some(body)
         } else {
             None
         };
 
-        Some(if_expr!(condition, then, elze))
+        Some(if_expr!(Ast::Expr(condition), then, elze))
+    }
+    fn parse_call(&mut self, callee: Option<Expr>) -> Option<Expr> {
+        match callee {
+            Some(c) => {
+                let mut call_params = vec![];
+                self.advance();
+
+                while self.current != Token::Rp {
+                    self.skip_token(Token::Comma);
+                    if let Some(expr) = self.parse_expression(Precedence::None) {
+                        call_params.push(expr);
+                    }
+                }
+                println!("{:?} {:?}", c, call_params);
+                Some(call_expr!(c, call_params))
+            }
+            _ => None,
+        }
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Expr> {
@@ -522,20 +566,10 @@ impl Parser {
             Token::False => Some(bool_expr!(false)),
             Token::Identifier(ref mut id) => Some(id_expr!(id.clone())),
 
-            // Token::LeftSq => self.parse_array_expr(),
-            // Token::Lbrace => self.parse_hash_expr(),
-            //
             Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expr(),
             Token::Lp => self.parse_grouping(),
-            // Token::Fn => {
-            //     let f = self.parse_fn_expression();
-            //     Some(Ast::Expr(Expr::Fn(f.unwrap())))
-            // }
             Token::If => self.parse_conditional_expr(),
 
-            // Token::If => self.parse_if_expr(),
-            // Token::Func => self.parse_func_expr(),
-            //
             _ => {
                 // self.error_no_prefix_parser();
                 return None;
@@ -563,6 +597,11 @@ impl Parser {
                 }
                 Token::Assignment => {
                     left = self.parse_assignment_expression(left);
+                }
+                Token::Lp => {
+                    // println!("parse call! {:?}", left);
+                    left = self.parse_call(left);
+                    // return left;
                 }
                 // Token::Lparen => {
                 //     self.bump();
@@ -745,7 +784,7 @@ mod tests {
 
         assert_eq!(
             vec![Ast::Expr(if_expr!(
-                bool_expr!(true),
+                Ast::Expr(bool_expr!(true)),
                 vec![Ast::Expr(int_expr!(1))],
                 Some(vec![Ast::Expr(int_expr!(2))])
             ))],
@@ -763,7 +802,7 @@ mod tests {
 
         assert_eq!(
             vec![Ast::Expr(if_expr!(
-                bool_expr!(true),
+                Ast::Expr(bool_expr!(true)),
                 vec![Ast::Expr(tuple_expr!(vec![int_expr!(1), int_expr!(2)]))],
                 Some(vec![Ast::Expr(tuple_expr!(vec![
                     int_expr!(3),
@@ -799,6 +838,35 @@ mod tests {
                 )
             )],
             program
+        )
+    }
+
+    #[test]
+    fn test_call_expr() {
+        let input = r#"f()"#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+        assert_eq!(vec![Ast::Expr(call_expr!(id_expr!("f"), vec![]))], program,)
+    }
+    #[test]
+    fn test_call_exprs() {
+        let mut input = r#"f(1,2,3)"#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let mut program = parser.parse_program();
+        assert_eq!(
+            vec![Ast::Expr(call_expr!(
+                id_expr!("f"),
+                vec![int_expr!(1), int_expr!(2), int_expr!(3),]
+            ))],
+            program,
+        );
+
+        input = r#"f(1)"#;
+        parser = Parser::new(Lexer::new(input.into()));
+        program = parser.parse_program();
+        assert_eq!(
+            vec![Ast::Expr(call_expr!(id_expr!("f"), vec![int_expr!(1)]))],
+            program,
         )
     }
 }
