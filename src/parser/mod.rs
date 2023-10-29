@@ -89,57 +89,66 @@ pub enum Expr {
     String(String),
 }
 
-impl Ast {
+impl Expr {
     pub fn get_ttype(&self) -> Option<Ttype> {
         match self {
-            Ast::Expr(e) => {
-                match e {
-                    Expr::Id(_, t)
-                    | Expr::Binop(_, _, _, t)
-                    | Expr::Unop(_, _, t)
-                    | Expr::Tuple(_, t)
-                    | Expr::Index(_, _, t)
-                    | Expr::Assignment(_, _, t)
-                    | Expr::Fn(_, _, _, t)
-                    | Expr::Body(_, t)
-                    | Expr::Call(_, _, t)
-                    | Expr::If(_, _, _, t) => Some(t.clone()),
+            Expr::Id(_, t)
+            | Expr::Binop(_, _, _, t)
+            | Expr::Unop(_, _, t)
+            | Expr::Tuple(_, t)
+            | Expr::Index(_, _, t)
+            | Expr::Assignment(_, _, t)
+            | Expr::Fn(_, _, _, t)
+            | Expr::Body(_, t)
+            | Expr::Call(_, _, t)
+            | Expr::If(_, _, _, t) => Some(t.clone()),
 
-                    // literals
-                    Expr::Int8(_) => Some(Ttype::Numeric(Numeric::Int8)),
-                    Expr::Integer(_) => Some(Ttype::Numeric(Numeric::Int)),
-                    Expr::Number(_) => Some(Ttype::Numeric(Numeric::Num)),
-                    Expr::Bool(_) => Some(Ttype::Bool),
-                    Expr::String(_) => Some(Ttype::Str),
-                }
-            }
+            // literals
+            Expr::Int8(_) => Some(Ttype::Numeric(Numeric::Int8)),
+            Expr::Integer(_) => Some(Ttype::Numeric(Numeric::Int)),
+            Expr::Number(_) => Some(Ttype::Numeric(Numeric::Num)),
+            Expr::Bool(_) => Some(Ttype::Bool),
+            Expr::String(_) => Some(Ttype::Str),
             _ => None,
         }
     }
 
     pub fn set_ttype(&mut self, t: Ttype) {
         match self {
-            Ast::Expr(e) => match e {
-                Expr::Id(_, ref mut ttype)
-                | Expr::Binop(_, _, _, ref mut ttype)
-                | Expr::Unop(_, _, ref mut ttype)
-                | Expr::Tuple(_, ref mut ttype)
-                | Expr::Index(_, _, ref mut ttype)
-                | Expr::Assignment(_, _, ref mut ttype)
-                | Expr::Fn(_, _, _, ref mut ttype)
-                | Expr::Body(_, ref mut ttype)
-                | Expr::Call(_, _, ref mut ttype)
-                | Expr::If(_, _, _, ref mut ttype) => match ttype {
-                    Ttype::Var(n) => {
-                        if n == "" {
-                            *ttype = t
-                        }
+            Expr::Id(_, ref mut ttype)
+            | Expr::Binop(_, _, _, ref mut ttype)
+            | Expr::Unop(_, _, ref mut ttype)
+            | Expr::Tuple(_, ref mut ttype)
+            | Expr::Index(_, _, ref mut ttype)
+            | Expr::Assignment(_, _, ref mut ttype)
+            | Expr::Fn(_, _, _, ref mut ttype)
+            | Expr::Body(_, ref mut ttype)
+            | Expr::Call(_, _, ref mut ttype)
+            | Expr::If(_, _, _, ref mut ttype) => match ttype {
+                Ttype::Var(n) => {
+                    if n == "" {
+                        *ttype = t
                     }
-                    _ => (),
-                },
-
+                }
                 _ => (),
             },
+
+            _ => (),
+        }
+    }
+}
+
+impl Ast {
+    pub fn get_ttype(&self) -> Option<Ttype> {
+        match self {
+            Ast::Expr(e) => e.get_ttype(),
+            _ => None,
+        }
+    }
+
+    pub fn set_ttype(&mut self, t: Ttype) {
+        match self {
+            Ast::Expr(e) => e.set_ttype(t),
             _ => (),
         }
     }
@@ -240,6 +249,7 @@ macro_rules! if_expr {
     };
 }
 
+#[macro_export]
 macro_rules! call_expr {
     ($callable: expr, $args: expr) => {
         Expr::Call(Box::new($callable), $args, tvar())

@@ -299,7 +299,34 @@ pub fn generate_constraints(ast: &mut Ast, constraints: &mut Vec<Constraint>, en
                 }
             }
             Expr::Call(callee_box, params_vec, ttype) => {
-                let mut callee = Ast::Expr(*callee_box.clone());
+                let callee_expr = *callee_box.to_owned();
+                let mut callee_ast = Ast::Expr(callee_expr.clone());
+                generate_constraints(&mut callee_ast, constraints, env);
+
+                let fn_types_opt = match &callee_expr {
+                    Expr::Id(id, _) => match env.lookup(id.into()) {
+                        Some(SymbolValue::Function(Ttype::Fn(fn_types_vec))) => {
+                            push_constraint(
+                                ttype.clone(),
+                                fn_types_vec.last().unwrap().clone(),
+                                constraints,
+                            );
+                            Some(fn_types_vec.clone())
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                for (idx, param) in params_vec.iter().enumerate() {
+                    let mut param_ast = Ast::Expr(param.clone());
+                    generate_constraints(&mut param_ast, constraints, env);
+                    match (&fn_types_opt, param.get_ttype()) {
+                        (Some(fn_types), Some(param_type)) => {
+                            push_constraint(param_type.clone(), fn_types[idx].clone(), constraints);
+                        }
+                        _ => {}
+                    }
+                }
             }
             _ => (),
         },
@@ -313,7 +340,9 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::{ast_wrap, binop_expr, bool_expr, id_expr, if_expr, int_expr, tuple_expr};
+    use crate::{
+        ast_wrap, binop_expr, bool_expr, call_expr, id_expr, if_expr, int_expr, tuple_expr,
+    };
     use pretty_assertions::{assert_eq, assert_ne};
     macro_rules! t {
         ($name: expr) => {
@@ -383,41 +412,41 @@ mod tests {
                     "f".into(),
                     Expr::Fn(
                         vec![
-                            Ast::Expr(id_expr!("a", Ttype::Var("arg_a".into()))),
-                            Ast::Expr(id_expr!("b", Ttype::Var("arg_b".into()))),
+                            Ast::Expr(id_expr!("a", Ttype::tvar("arg_a"))),
+                            Ast::Expr(id_expr!("b", Ttype::tvar("arg_b"))),
                         ],
                         None,
                         vec![Ast::Expr(binop_expr!(
                             Token::Plus,
-                            id_expr!("a", Ttype::Var("arg_a_ref".into())),
-                            id_expr!("b", Ttype::Var("arg_b_ref".into())),
-                            Ttype::Var("fn_return".into())
+                            id_expr!("a", Ttype::tvar("arg_a_ref")),
+                            id_expr!("b", Ttype::tvar("arg_b_ref")),
+                            Ttype::tvar("fn_return")
                         ))],
-                        Ttype::Var("fn_type".into()),
+                        Ttype::tvar("fn_type"),
                     ),
                 )],
                 vec![
                     Constraint {
-                        lhs: Ttype::Var("arg_a_ref".into()),
-                        rhs: Ttype::Var("arg_a".into()),
+                        lhs: Ttype::tvar("arg_a_ref"),
+                        rhs: Ttype::tvar("arg_a"),
                     },
                     Constraint {
-                        lhs: Ttype::Var("arg_b_ref".into()),
-                        rhs: Ttype::Var("arg_b".into()),
+                        lhs: Ttype::tvar("arg_b_ref"),
+                        rhs: Ttype::tvar("arg_b"),
                     },
                     Constraint {
-                        lhs: Ttype::Var("fn_return".into()),
+                        lhs: Ttype::tvar("fn_return"),
                         rhs: Ttype::MaxNumeric(
-                            Box::new(Ttype::Var("arg_a_ref".into())),
-                            Box::new(Ttype::Var("arg_b_ref".into())),
+                            Box::new(Ttype::tvar("arg_a_ref")),
+                            Box::new(Ttype::tvar("arg_b_ref")),
                         ),
                     },
                     Constraint {
-                        lhs: Ttype::Var("fn_type".into()),
+                        lhs: Ttype::tvar("fn_type"),
                         rhs: Ttype::Fn(vec![
-                            Ttype::Var("arg_a".into()),
-                            Ttype::Var("arg_b".into()),
-                            Ttype::Var("fn_return".into()),
+                            Ttype::tvar("arg_a"),
+                            Ttype::tvar("arg_b"),
+                            Ttype::tvar("fn_return"),
                         ]),
                     },
                 ],
@@ -428,10 +457,10 @@ mod tests {
                     Token::Plus,
                     int_expr!(1),
                     int_expr!(2),
-                    Ttype::Var("+".into())
+                    Ttype::tvar("+")
                 ))],
                 vec![Constraint {
-                    lhs: Ttype::Var("+".into()),
+                    lhs: Ttype::tvar("+"),
                     rhs: Ttype::Numeric(Numeric::Int),
                 }],
             ),
@@ -439,16 +468,13 @@ mod tests {
             (
                 vec![ast_wrap!(binop_expr!(
                     Token::Plus,
-                    id_expr!("a", Ttype::Var("a".into())),
-                    id_expr!("b", Ttype::Var("b".into())),
-                    Ttype::Var("+".into())
+                    id_expr!("a", Ttype::tvar("a")),
+                    id_expr!("b", Ttype::tvar("b")),
+                    Ttype::tvar("+")
                 ))],
                 vec![Constraint {
-                    lhs: Ttype::Var("+".into()),
-                    rhs: Ttype::MaxNumeric(
-                        Box::new(Ttype::Var("a".into())),
-                        Box::new(Ttype::Var("b".into())),
-                    ),
+                    lhs: Ttype::tvar("+"),
+                    rhs: Ttype::MaxNumeric(Box::new(Ttype::tvar("a")), Box::new(Ttype::tvar("b"))),
                 }],
             ),
         ];
@@ -464,5 +490,95 @@ mod tests {
             env.pop();
             assert_eq_unordered::<Constraint>(expect, cons)
         }
+    }
+    #[test]
+    fn test_call() {
+        let mut cons = vec![];
+        let mut env = Env::new();
+        env.push();
+        env.bind_symbol(
+            "f".into(),
+            SymbolValue::Function(Ttype::Fn(vec![
+                Ttype::tvar("fn_arg_0"),
+                Ttype::tvar("fn_ret"),
+            ])),
+        );
+        generate_constraints(
+            &mut Ast::Expr(call_expr!(
+                id_expr!("f", Ttype::tvar("fn_ref")),
+                vec![int_expr!(1)],
+                Ttype::tvar("call_expr")
+            )),
+            &mut cons,
+            &mut env,
+        );
+        println!("constraints {:?} {:?}", cons, env);
+        env.pop();
+        assert_eq_unordered::<Constraint>(
+            vec![
+                Constraint {
+                    lhs: Ttype::tvar("call_expr"),
+                    rhs: Ttype::tvar("fn_ret"),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("fn_ref"),
+                    rhs: Ttype::Fn(vec![Ttype::tvar("fn_arg_0"), Ttype::tvar("fn_ret")]),
+                },
+            ],
+            cons,
+        )
+    }
+
+    #[test]
+    fn test_call_arg_constraints() {
+        let mut cons = vec![];
+        let mut env = Env::new();
+        env.push();
+        env.bind_symbol(
+            "f".into(),
+            SymbolValue::Function(Ttype::Fn(vec![
+                Ttype::tvar("fn_arg_0"),
+                Ttype::tvar("fn_arg_1"),
+                Ttype::tvar("fn_ret"),
+            ])),
+        );
+        generate_constraints(
+            &mut Ast::Expr(call_expr!(
+                id_expr!("f", Ttype::tvar("fn_ref")),
+                vec![
+                    id_expr!("a", Ttype::tvar("a_ref")),
+                    id_expr!("b", Ttype::tvar("b_ref")),
+                ],
+                Ttype::tvar("call_expr")
+            )),
+            &mut cons,
+            &mut env,
+        );
+        env.pop();
+        assert_eq_unordered::<Constraint>(
+            vec![
+                Constraint {
+                    lhs: Ttype::tvar("call_expr"),
+                    rhs: Ttype::tvar("fn_ret"),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("a_ref"),
+                    rhs: Ttype::tvar("fn_arg_0"),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("b_ref"),
+                    rhs: Ttype::tvar("fn_arg_1"),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("fn_ref"),
+                    rhs: Ttype::Fn(vec![
+                        Ttype::tvar("fn_arg_0"),
+                        Ttype::tvar("fn_arg_1"),
+                        Ttype::tvar("fn_ret"),
+                    ]),
+                },
+            ],
+            cons,
+        )
     }
 }

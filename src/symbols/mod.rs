@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::parser::Ast;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Numeric {
     Int8 = 0, // int8 - alias char
@@ -25,6 +25,11 @@ pub enum Ttype {
     Array(Box<Ttype>), // 't[n]
     Uptr,
     Var(String), // 'x
+}
+impl Ttype {
+    pub fn tvar(n: &str) -> Self {
+        Ttype::Var(n.into())
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
