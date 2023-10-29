@@ -36,17 +36,18 @@ pub struct Constraint {
 }
 
 pub fn infer_types(expr: &mut Program) {
-    let mut constraint_generator = ConstraintGenerator::new();
+    let mut cg = ConstraintGenerator::new();
     for mut e in expr {
-        constraint_generator.generate_constraints(&mut e);
+        cg.generate_constraints(&mut e);
     }
 
-    constraint_generator.env.pop();
     println!("Constraints:");
-    for c in &constraint_generator.constraints {
+    for c in &cg.constraints {
         println!("{:?}", c);
     }
     println!("");
+    println!("{:?}", cg.env);
+    cg.env.pop();
 }
 
 pub static mut TVAR_COUNT: usize = 0;
@@ -253,7 +254,7 @@ impl ConstraintGenerator {
         let env = &self.env;
 
         let fn_types = match callee {
-            Ast::Id(id, callee_ttype) => match env.lookup(id.clone()) {
+            Ast::Id(callee_ref, _callee_ref_ttype) => match env.lookup(callee_ref.clone()) {
                 Some(SymbolValue::Function(Ttype::Fn(fn_types_vec))) => fn_types_vec.clone(),
                 _ => {
                     // callee not found in env
@@ -293,6 +294,7 @@ impl ConstraintGenerator {
             Ast::Id(id, ttype) => {
                 self.id(id.clone(), ttype.clone());
             }
+
             Ast::Binop(token, left_box, right_box, ttype) => {
                 self.binop(
                     token.clone(),
@@ -301,12 +303,13 @@ impl ConstraintGenerator {
                     ttype.clone(),
                 );
             }
+
             Ast::Unop(token, operand_box, ttype) => {
                 self.unop(token.clone(), &mut *operand_box, ttype.clone());
             }
-            //
+
             Ast::Tuple(exprs_vec, ttype) => self.tuple(exprs_vec, ttype.clone()),
-            //
+
             Ast::Index(object_box, index_box, ttype) => {
                 self.index(&mut *object_box, &mut *index_box, ttype.clone());
             }
@@ -343,9 +346,6 @@ impl ConstraintGenerator {
             }
             _ => (),
         }
-        // let _ = mem::replace(ast_o, ast);
-
-        println!("ast with ttype: {:?}", ast);
     }
 
     fn push_constraint(&mut self, left: Ttype, right: Ttype) {
