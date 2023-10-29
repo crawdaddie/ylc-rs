@@ -77,7 +77,7 @@ pub enum Expr {
     Tuple(Vec<Expr>, Ttype),
     Index(Box<Expr>, Box<Expr>, Ttype),
     Assignment(Box<Expr>, Box<Expr>, Ttype),
-    Fn(Vec<Expr>, Option<Box<Expr>>, Vec<Ast>, Ttype),
+    Fn(Vec<Ast>, Option<Box<Expr>>, Vec<Ast>, Ttype),
     Call(Box<Expr>, Vec<Expr>, Ttype),
     Body(Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
@@ -135,12 +135,12 @@ impl Ast {
                             *ttype = t
                         }
                     }
-                    _ => {}
+                    _ => (),
                 },
 
-                _ => {}
+                _ => (),
             },
-            _ => {}
+            _ => (),
         }
     }
 }
@@ -177,7 +177,7 @@ macro_rules! bool_expr {
         Expr::Bool($value)
     };
 }
-
+#[macro_export]
 macro_rules! id_expr {
     ($value:expr) => {
         Expr::Id($value.into(), tvar())
@@ -198,7 +198,7 @@ macro_rules! tuple_expr {
         Expr::Tuple($values, $var)
     };
 }
-
+#[macro_export]
 macro_rules! binop_expr {
     ($op:expr,$l:expr,$r:expr) => {
         Expr::Binop($op, Box::new($l), Box::new($r), tvar())
@@ -249,8 +249,9 @@ macro_rules! call_expr {
         Expr::Call(Box::new($callable), $args, $var)
     };
 }
+
 #[macro_export]
-macro_rules! ast_expr {
+macro_rules! ast_wrap {
     ($e: expr) => {
         Ast::Expr($e)
     };
@@ -482,7 +483,11 @@ impl Parser {
         if self.current != Token::Lp {
             return None;
         };
-        let args = self.parse_fn_args();
+        let args = self
+            .parse_fn_args()
+            .iter()
+            .map(|e| Ast::Expr(e.clone()))
+            .collect();
 
         let return_type = if self.current != Token::LeftBrace {
             Some(Box::new(self.parse_type_expression().unwrap()))
@@ -827,7 +832,11 @@ mod tests {
             vec![Ast::FnDeclaration(
                 "f".into(),
                 Expr::Fn(
-                    vec![id_expr!("a"), id_expr!("b"), id_expr!("c"),],
+                    vec![
+                        Ast::Expr(id_expr!("a")),
+                        Ast::Expr(id_expr!("b")),
+                        Ast::Expr(id_expr!("c")),
+                    ],
                     None,
                     vec![Ast::Expr(binop_expr!(
                         Token::Plus,
