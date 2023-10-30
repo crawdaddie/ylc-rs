@@ -3,10 +3,9 @@ use crate::{
     symbols::{Env, SymbolValue},
 };
 
-#[macro_use]
 use crate::{
     lexer::Token,
-    parser::{Ast, Program},
+    parser::Ast,
     symbols::{Numeric, Ttype},
 };
 
@@ -28,34 +27,23 @@ fn tvar() -> Ttype {
 }
 
 fn push_constraint(left: Ttype, right: Ttype, constraints: &mut Vec<Constraint>) {
-    match &left {
-        Ttype::Var(_) => {
-            constraints.push(Constraint {
-                lhs: left,
-                rhs: right,
-            });
-        }
-        _ => {}
+    if let Ttype::Var(_) = &left {
+        constraints.push(Constraint {
+            lhs: left,
+            rhs: right,
+        });
     }
 }
 fn max_numeric_type(l: Ttype, r: Ttype) -> Option<Ttype> {
     match (&l, &r) {
         (Ttype::Numeric(lnum), rnum) => match rnum {
-            Ttype::Numeric(rnum) => Some(Ttype::Numeric(if rnum >= lnum {
-                rnum.clone()
-            } else {
-                lnum.clone()
-            })),
+            Ttype::Numeric(rnum) => Some(Ttype::Numeric(if rnum >= lnum { *rnum } else { *lnum })),
             Ttype::Var(_) => Some(Ttype::MaxNumeric(Box::new(l), Box::new(r))),
             _ => None,
         },
 
         (lnum, Ttype::Numeric(rnum)) => match lnum {
-            Ttype::Numeric(lnum) => Some(Ttype::Numeric(if rnum >= lnum {
-                rnum.clone()
-            } else {
-                lnum.clone()
-            })),
+            Ttype::Numeric(lnum) => Some(Ttype::Numeric(if rnum >= lnum { *rnum } else { *lnum })),
             Ttype::Var(_) => Some(Ttype::MaxNumeric(Box::new(l), Box::new(r))),
             _ => None,
         },
@@ -78,7 +66,7 @@ impl ConstraintGenerator {
         cgen
     }
     fn body(&mut self, body: &mut Vec<Ast>, final_ttype: Option<Ttype>) -> Option<Ttype> {
-        if body.len() == 0 {
+        if body.is_empty() {
             return None;
         }
 
@@ -88,60 +76,48 @@ impl ConstraintGenerator {
             fin = s.clone();
         }
 
-        match (final_ttype, fin.get_ttype()) {
-            (Some(l), Some(r)) => {
-                push_constraint(l, r, &mut self.constraints);
-            }
-            _ => {}
+        if let (Some(l), Some(r)) = (final_ttype, fin.get_ttype()) {
+            push_constraint(l, r, &mut self.constraints);
         };
 
         fin.get_ttype()
     }
     fn fn_declaration(&mut self, id: Identifier, fn_expr: &mut Ast) {
         fn_expr.set_ttype(tvar());
-        match fn_expr {
-            Ast::Fn(args_vec, _ret_type_ast, ref mut stmts, ttype) => {
-                self.env.push();
-                let mut fn_types = vec![];
-                for mut arg in args_vec {
-                    self.generate_constraints(&mut arg);
-                    fn_types.push(arg.get_ttype().unwrap());
-                    match arg {
-                        Ast::Id(arg_id, arg_type) => {
-                            self.env.bind_symbol(
-                                arg_id.clone(),
-                                SymbolValue::Variable(arg_type.clone()),
-                            );
-                        }
-                        _ => {}
-                    }
+        if let Ast::Fn(args_vec, _ret_type_ast, ref mut stmts, ttype) = fn_expr {
+            self.env.push();
+            let mut fn_types = vec![];
+            for mut arg in args_vec {
+                self.generate_constraints(arg);
+                fn_types.push(arg.get_ttype().unwrap());
+                if let Ast::Id(arg_id, arg_type) = arg {
+                    self.env
+                        .bind_symbol(arg_id.clone(), SymbolValue::Variable(arg_type.clone()));
                 }
-                self.env
-                    .bind_symbol(id.clone(), SymbolValue::Function(ttype.clone()));
-
-                let final_stmt_type = self.body(
-                    stmts, None, // TODO: ret_type
-                );
-
-                fn_types.push(final_stmt_type.unwrap_or(tvar()));
-                self.env.pop();
-
-                let fn_type = Ttype::Fn(fn_types);
-                self.env
-                    .bind_symbol(id, SymbolValue::Function(fn_type.clone()));
-                self.push_constraint(ttype.clone(), fn_type);
             }
-            _ => {}
+            self.env
+                .bind_symbol(id.clone(), SymbolValue::Function(ttype.clone()));
+
+            let final_stmt_type = self.body(
+                stmts, None, // TODO: ret_type
+            );
+
+            fn_types.push(final_stmt_type.unwrap_or(tvar()));
+            self.env.pop();
+
+            let fn_type = Ttype::Fn(fn_types);
+            self.env
+                .bind_symbol(id, SymbolValue::Function(fn_type.clone()));
+            self.push_constraint(ttype.clone(), fn_type);
         }
     }
 
     fn id(&mut self, id: Identifier, ttype: Ttype) {
         // lookup id in env and constrain ttype to the lookup's ttype
-        match self.env.lookup(id.to_string()) {
-            Some(SymbolValue::Variable(t)) | Some(SymbolValue::Function(t)) => {
-                self.push_constraint(ttype, t.clone());
-            }
-            _ => {}
+        if let Some(SymbolValue::Variable(t)) | Some(SymbolValue::Function(t)) =
+            self.env.lookup(id.to_string())
+        {
+            self.push_constraint(ttype, t.clone());
         }
     }
     fn binop(&mut self, token: Token, left: &mut Ast, right: &mut Ast, ttype: Ttype) {
@@ -178,7 +154,7 @@ impl ConstraintGenerator {
     fn tuple(&mut self, exprs: &mut Vec<Ast>, ttype: Ttype) {
         let mut ttv = vec![];
         for mut e in exprs {
-            self.generate_constraints(&mut e);
+            self.generate_constraints(e);
             ttv.push(e.get_ttype().unwrap());
         }
         self.push_constraint(ttype, Ttype::Tuple(ttv));
@@ -239,12 +215,9 @@ impl ConstraintGenerator {
         }
 
         for (idx, mut param) in params.iter_mut().enumerate() {
-            self.generate_constraints(&mut param);
-            match param.get_ttype() {
-                Some(param_type) => {
-                    self.push_constraint(param_type.clone(), fn_types[idx].clone());
-                }
-                _ => {}
+            self.generate_constraints(param);
+            if let Some(param_type) = param.get_ttype() {
+                self.push_constraint(param_type.clone(), fn_types[idx].clone());
             }
         }
     }
@@ -253,7 +226,11 @@ impl ConstraintGenerator {
         ast.set_ttype(tvar());
 
         match ast {
-            Ast::Let(id, type_expr, value) => {}
+            Ast::Let(id, type_expr, value) => {
+                if value.is_some() {
+                    self.generate_constraints(&mut *(value.as_mut().unwrap()))
+                }
+            }
             Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), &mut *fn_expr),
             Ast::TypeDeclaration(id, type_expr) => {}
             Ast::Id(id, ttype) => {
@@ -314,14 +291,11 @@ impl ConstraintGenerator {
     }
 
     fn push_constraint(&mut self, left: Ttype, right: Ttype) {
-        match &left {
-            Ttype::Var(_) => {
-                self.constraints.push(Constraint {
-                    lhs: left,
-                    rhs: right,
-                });
-            }
-            _ => {}
+        if let Ttype::Var(_) = &left {
+            self.constraints.push(Constraint {
+                lhs: left,
+                rhs: right,
+            });
         }
     }
 }

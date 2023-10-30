@@ -51,9 +51,9 @@ impl fmt::Debug for Ttype {
             Ttype::Void => write!(f, "Ttype::Void"),
             Ttype::Fn(params) => {
                 let mut r = write!(f, "{:?}", params[0]);
-                for pidx in 1..params.len() {
+                for p in params.iter().skip(1) {
                     r = write!(f, "->");
-                    r = write!(f, "{:?}", params[pidx]);
+                    r = write!(f, "{:?}", p);
                 }
                 r
             }

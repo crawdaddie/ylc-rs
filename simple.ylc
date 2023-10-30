@@ -1,4 +1,7 @@
 let a = (1 + 1)
 let x = fn (a, b, c) {
-a + b + c
+  a + b + c
 }
+
+let g = x(1, 2, a)
+g + 1

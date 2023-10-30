@@ -8,8 +8,8 @@ use unify::unify_types;
 
 pub fn infer_types(expr: &mut Program) {
     let mut cg = ConstraintGenerator::new();
-    for mut e in expr {
-        cg.generate_constraints(&mut e);
+    for e in expr {
+        cg.generate_constraints(e);
     }
 
     // println!("Constraints:");
@@ -20,5 +20,13 @@ pub fn infer_types(expr: &mut Program) {
     // println!("{:?}", cg.env);
     cg.env.pop();
 
-    unify_types(cg.constraints);
+    let mut subs = vec![];
+
+    println!("\x1b[1;31m");
+    for c in &cg.constraints {
+        println!("{:?}", c);
+    }
+    println!("\x1b[1;0m");
+    subs = unify_types(&mut cg.constraints, &mut subs);
+    println!("unified substitutions: {:?}", subs);
 }

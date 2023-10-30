@@ -21,7 +21,7 @@ pub enum Precedence {
 }
 
 pub type Identifier = String;
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Ast {
     Let(
         Identifier,
@@ -87,18 +87,18 @@ impl Ast {
             | Ast::Fn(_, _, _, ref mut ttype)
             | Ast::Body(_, ref mut ttype)
             | Ast::Call(_, _, ref mut ttype)
-            | Ast::If(_, _, _, ref mut ttype) => match ttype {
-                Ttype::Var(n) => {
-                    if n == "" {
+            | Ast::If(_, _, _, ref mut ttype) => {
+                if let Ttype::Var(n) = ttype {
+                    if n.is_empty() {
                         *ttype = t
                     }
                 }
-                _ => (),
-            },
+            }
             _ => {}
         }
     }
 }
+/*
 impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -170,6 +170,7 @@ impl fmt::Debug for Ast {
         }
     }
 }
+*/
 
 fn tvar() -> Ttype {
     Ttype::Var("".into())
@@ -321,9 +322,7 @@ impl Parser {
     fn parse_assignment_expression(&mut self, id: Option<Ast>) -> Option<Ast> {
         self.advance();
 
-        if id.is_none() {
-            return None;
-        };
+        id.as_ref()?;
 
         self.parse_expression(Precedence::None)
             .map(|e| assignment_expr!(id.unwrap(), e))
@@ -349,17 +348,17 @@ impl Parser {
         let id2 = self.parse_identifier(); // id
 
         if self.expect_token(Token::Assignment) {
-            return match self.current {
+            match self.current {
                 Token::Fn => Some(Ast::FnDeclaration(
                     id1.unwrap(),
                     Box::new(self.parse_fn_expression().unwrap()),
                 )),
 
                 _ => {
-                    if id2.is_some() {
+                    if let Some(n) = id2 {
                         // id1 is type & id2 is id
                         Some(Ast::Let(
-                            id2.unwrap(),
+                            n,
                             id1.map(|i| Box::new(id_expr!(i))),
                             Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
                         ))
@@ -371,13 +370,13 @@ impl Parser {
                         ))
                     }
                 }
-            };
+            }
         } else {
-            return Some(Ast::Let(
+            Some(Ast::Let(
                 id2.clone().unwrap_or(id1.clone().unwrap()),
                 id1.map(|i| Box::new(id_expr!(i))),
                 None,
-            ));
+            ))
         }
     }
 
@@ -414,14 +413,10 @@ impl Parser {
         let precedence = self.token_to_precedence(&tok);
 
         self.advance();
-        if left.is_none() {
-            return None;
-        };
+        left.as_ref()?;
 
-        match self.parse_expression(precedence) {
-            Some(expr) => Some(binop_expr!(tok, left.unwrap(), expr)),
-            None => None,
-        }
+        self.parse_expression(precedence)
+            .map(|expr| binop_expr!(tok, left.unwrap(), expr))
     }
 
     fn parse_prefix_expr(&mut self) -> Option<Ast> {
@@ -429,15 +424,11 @@ impl Parser {
 
         let precedence = self.token_to_precedence(&tok);
         self.advance();
-        match self.parse_expression(precedence) {
-            Some(expr) => Some(unop_expr!(tok, expr)),
-            None => None,
-        }
+        self.parse_expression(precedence)
+            .map(|expr| unop_expr!(tok, expr))
     }
     fn parse_tuple(&mut self, first: Option<Ast>) -> Option<Ast> {
-        if first.is_none() {
-            return None;
-        }
+        first.as_ref()?;
 
         let mut exprs = vec![first.unwrap()];
         self.advance();
@@ -526,11 +517,7 @@ impl Parser {
     fn parse_conditional_expr(&mut self) -> Option<Ast> {
         self.advance();
 
-        let condition = if let Some(cond) = self.parse_expression(Precedence::None) {
-            cond
-        } else {
-            return None;
-        };
+        let condition = self.parse_expression(Precedence::None)?;
 
         let then = if self.expect_token(Token::LeftBrace) {
             let body = self.parse_body();
@@ -568,7 +555,6 @@ impl Parser {
                         call_params.push(expr);
                     }
                 }
-                println!("{:?} {:?}", c, call_params);
                 Some(call_expr!(c, call_params))
             }
             _ => None,
@@ -648,8 +634,7 @@ impl Parser {
 pub fn parse(input: String) -> Program {
     let lexer = Lexer::new(input);
     let mut p = Parser::new(lexer);
-    let program = p.parse_program();
-    program
+    p.parse_program()
 }
 
 #[cfg(test)]

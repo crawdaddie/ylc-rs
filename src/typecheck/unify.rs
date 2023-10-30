@@ -1,9 +1,13 @@
 use super::constraints::Constraint;
 
-pub fn unify_types(constraints: Vec<Constraint>) {
-    println!("\x1b[1;31m");
-    for c in &constraints {
-        println!("{:?}", c);
+pub fn unify_types(
+    constraints: &mut Vec<Constraint>,
+    subs: &mut Vec<Constraint>,
+) -> Vec<Constraint> {
+    if constraints.is_empty() {
+        return subs.to_vec();
     }
-    println!("\x1b[1;0m");
+
+    let (first, rest) = constraints.split_at_mut(1);
+    unify_types(&mut rest.to_vec(), subs)
 }

@@ -78,7 +78,9 @@ fn main() -> Result<(), io::Error> {
     infer_types(&mut program);
 
     println!("\x1b[1;35m");
-    println!("{:?}", program);
+    for s in &program {
+        println!("{:?}", s);
+    }
     println!("\x1b[1;0m");
 
     ctx.env.push();

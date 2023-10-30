@@ -79,15 +79,14 @@ impl Lexer {
     pub fn new(input: String) -> Self {
         let chars: Vec<char> = input.chars().collect();
         let ch = chars[0];
-        let s = Self {
+        Self {
             input: chars,
             // position: 0,
             read_position: 0,
             ch,
             line: 0,
             col: 0,
-        };
-        s
+        }
     }
 
     pub fn advance(&mut self, num: usize) {
