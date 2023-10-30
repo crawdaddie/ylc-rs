@@ -3,7 +3,7 @@ use rustyline::{DefaultEditor, Result};
 
 pub fn repl<F>(cb: F) -> Result<()>
 where
-    F: Fn(String) -> (),
+    F: Fn(String),
 {
     // `()` can be used when no completer is required
     let mut rl = DefaultEditor::new()?;

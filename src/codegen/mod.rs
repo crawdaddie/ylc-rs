@@ -3,8 +3,8 @@ use inkwell::values::FunctionValue;
 
 use std::error::Error;
 
-use crate::parser::{Ast, Program};
-use crate::symbols::SymbolValue;
+use crate::parser::{Program};
+
 use crate::CodegenCtx;
 
 impl<'ctx> CodegenCtx<'ctx> {
@@ -99,14 +99,8 @@ pub fn codegen_program<'ctx>(
     let basic_block = ctx.context.append_basic_block(main_fn, "entry");
     ctx.builder.position_at_end(basic_block);
 
-    for stmt in program {
-        match stmt {
-            // Ast::Let(id, t, expr) => codegen_let(id.id, t, expr, ctx),
-            // Ast::FnDeclaration(id, fn_expr) => codegen_function_decl(id, fn_expr, ctx),
-            // Ast::TypeDeclaration(id, expr) => codegen_type_decl(id, expr, ctx),
-            // Ast::Ast(expr) => codegen_expression(expr, ctx),
-            _ => {}
-        }
+    for _stmt in program {
+        {}
     }
     ctx.builder.build_return(None);
     Ok(main_fn)

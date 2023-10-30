@@ -8,6 +8,6 @@ pub fn unify_types(
         return subs.to_vec();
     }
 
-    let (first, rest) = constraints.split_at_mut(1);
+    let (_first, rest) = constraints.split_at_mut(1);
     unify_types(&mut rest.to_vec(), subs)
 }

@@ -87,7 +87,7 @@ impl ConstraintGenerator {
         if let Ast::Fn(args_vec, _ret_type_ast, ref mut stmts, ttype) = fn_expr {
             self.env.push();
             let mut fn_types = vec![];
-            for mut arg in args_vec {
+            for arg in args_vec {
                 self.generate_constraints(arg);
                 fn_types.push(arg.get_ttype().unwrap());
                 if let Ast::Id(arg_id, arg_type) = arg {
@@ -153,13 +153,13 @@ impl ConstraintGenerator {
 
     fn tuple(&mut self, exprs: &mut Vec<Ast>, ttype: Ttype) {
         let mut ttv = vec![];
-        for mut e in exprs {
+        for e in exprs {
             self.generate_constraints(e);
             ttv.push(e.get_ttype().unwrap());
         }
         self.push_constraint(ttype, Ttype::Tuple(ttv));
     }
-    fn index(&mut self, object: &mut Ast, idx: &mut Ast, ttype: Ttype) {
+    fn index(&mut self, object: &mut Ast, idx: &mut Ast, _ttype: Ttype) {
         self.generate_constraints(object);
         //     // TODO: create Ttype::Array(last type of obj array types)
         //     // TODO: push_constraint obj.ttype == Ttype::Array['t]
@@ -214,7 +214,7 @@ impl ConstraintGenerator {
             // TODO: typecheck curried fn
         }
 
-        for (idx, mut param) in params.iter_mut().enumerate() {
+        for (idx, param) in params.iter_mut().enumerate() {
             self.generate_constraints(param);
             if let Some(param_type) = param.get_ttype() {
                 self.push_constraint(param_type.clone(), fn_types[idx].clone());
@@ -226,13 +226,13 @@ impl ConstraintGenerator {
         ast.set_ttype(tvar());
 
         match ast {
-            Ast::Let(id, type_expr, value) => {
+            Ast::Let(_id, _type_expr, value) => {
                 if value.is_some() {
                     self.generate_constraints(&mut *(value.as_mut().unwrap()))
                 }
             }
             Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), &mut *fn_expr),
-            Ast::TypeDeclaration(id, type_expr) => {}
+            Ast::TypeDeclaration(_id, _type_expr) => {}
             Ast::Id(id, ttype) => {
                 self.id(id.clone(), ttype.clone());
             }

@@ -73,7 +73,7 @@ pub struct Lexer {
     pub col: usize,
 }
 fn is_digit(ch: char) -> bool {
-    '0' <= ch && ch <= '9'
+    ch.is_ascii_digit()
 }
 impl Lexer {
     pub fn new(input: String) -> Self {
@@ -91,8 +91,8 @@ impl Lexer {
 
     pub fn advance(&mut self, num: usize) {
         // self.position = self.read_position;
-        self.read_position = self.read_position + num;
-        if (self.read_position >= self.input.len()) {
+        self.read_position += num;
+        if self.read_position >= self.input.len() {
             return;
         }
         self.col += num;
@@ -328,7 +328,7 @@ mod tests {
     #[ignore]
     #[test]
     fn get_tokens() {
-        let input = "
+        let _input = "
 type Point = struct (
     double x,
     double y,
@@ -356,13 +356,11 @@ printf(\"point y: %f\n\", p.y)
     fn get_paren_expr() {
         let input = r#"(1 + 1)"#;
         let mut lexer = Lexer::new(input.to_string());
-        for expect in vec![
-            Token::Lp,
+        for expect in [Token::Lp,
             Token::Integer(1),
             Token::Plus,
             Token::Integer(1),
-            Token::Rp,
-        ] {
+            Token::Rp] {
             let tok = lexer.scan_token();
             assert_eq!(expect, tok);
         }
