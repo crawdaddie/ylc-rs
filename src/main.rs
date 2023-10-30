@@ -12,6 +12,7 @@ use inkwell::module::Module;
 use inkwell::OptimizationLevel;
 
 use crate::typecheck::infer_types;
+
 mod codegen;
 mod lexer;
 mod parser;
@@ -76,7 +77,9 @@ fn main() -> Result<(), io::Error> {
     let mut program = parser::parse(file_contents);
     infer_types(&mut program);
 
+    println!("\x1b[1;35m");
     println!("{:?}", program);
+    println!("\x1b[1;0m");
 
     ctx.env.push();
     if codegen_program(program, &mut ctx).is_ok() {

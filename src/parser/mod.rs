@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::lexer;
 use crate::symbols::{Numeric, Ttype};
 use lexer::{Lexer, Token};
@@ -19,7 +21,7 @@ pub enum Precedence {
 }
 
 pub type Identifier = String;
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Ast {
     Let(
         Identifier,
@@ -94,6 +96,77 @@ impl Ast {
                 _ => (),
             },
             _ => {}
+        }
+    }
+}
+impl fmt::Debug for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Ast::Id(id, t) => write!(f, "{} ({:?})", id, t),
+            Ast::Binop(token, left, right, t) => {
+                let token_str = match token {
+                    Token::Plus => Some("+"),
+                    Token::Minus => Some("-"),
+                    Token::Star => Some("*"),
+                    Token::Slash => Some("/"),
+                    Token::Modulo => Some("%"),
+                    Token::Gt => Some(">"),
+                    Token::Gte => Some(">="),
+                    Token::Lt => Some("<"),
+                    Token::Lte => Some("<="),
+                    _ => None,
+                };
+                let _ = if token_str.is_some() {
+                    write!(f, "{:?} ({:?}, {:?})", token_str.unwrap(), left, right)
+                } else {
+                    write!(f, "{:?} ({:?}, {:?})", token, left, right)
+                };
+                Ok(())
+            }
+            Ast::Unop(token, operand, t) => {
+                write!(f, "Ast::Unop({:?}, {:?})", token, operand)
+            }
+            Ast::Tuple(exprs, t) => {
+                write!(f, "Ast::Tuple({:?})", exprs)
+            }
+            Ast::Index(obj, idx, t) => {
+                write!(f, "({:?}[{:?}])", obj, idx)
+            }
+            Ast::Assignment(assignee, val, t) => {
+                write!(f, "Ast::Assignment({:?}, {:?})", assignee, val)
+            }
+            Ast::Fn(params, ret_type, body, t) => {
+                write!(f, "({:?}) ({:?})\n\t{:?}", params, t, body)
+            }
+
+            Ast::Body(stmts, t) => {
+                let mut r = Ok(());
+                for s in stmts {
+                    r = write!(f, "{:?}\n", stmts)
+                }
+                r
+            }
+            Ast::Call(callee, params, t) => {
+                write!(f, "Ast::Call({:?}, {:?})", callee, params)
+            }
+            Ast::If(cond, then, elze, t) => {
+                write!(f, "Ast::If({:?}, {:?}, {:?})", cond, then, elze)
+            }
+            Ast::Int8(val) => write!(f, "Ast::Int8({})", val),
+            Ast::Integer(val) => write!(f, "Ast::Integer({})", val),
+            Ast::Number(val) => write!(f, "Ast::Number({})", val),
+            Ast::Bool(val) => write!(f, "Ast::Bool({})", val),
+            Ast::String(val) => write!(f, "Ast::String({})", val),
+
+            Ast::Let(id, t_param, init_expr) => {
+                write!(f, "Ast::Let({:?}, {:?},\n\t{:?})", id, t_param, init_expr)
+            }
+            Ast::FnDeclaration(id, fn_expr) => {
+                write!(f, "fn {:?} {:?}", id, fn_expr)
+            }
+            Ast::TypeDeclaration(id, body) => {
+                write!(f, "Ast::TypeDeclaration({:?}, {:?})", id, body)
+            }
         }
     }
 }
