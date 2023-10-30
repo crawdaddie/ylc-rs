@@ -1,7 +1,5 @@
 use std::{collections::HashMap, fmt};
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Numeric {
@@ -26,6 +24,7 @@ pub enum Ttype {
     Uptr,
     Var(String), // 'x
 }
+
 impl Ttype {
     pub fn tvar(n: &str) -> Self {
         Ttype::Var(n.into())
@@ -39,7 +38,6 @@ impl fmt::Debug for Ttype {
                 Numeric::Int8 => write!(f, "Int8"),
                 Numeric::Int => write!(f, "Int"),
                 Numeric::Num => write!(f, "Num"),
-                _ => Ok(()),
             },
             Ttype::MaxNumeric(type1, type2) => {
                 write!(f, "MaxNumeric({:?}, {:?})", type1, type2)
@@ -50,12 +48,12 @@ impl fmt::Debug for Ttype {
             Ttype::Struct => write!(f, "Ttype::Struct"),
             Ttype::Void => write!(f, "Ttype::Void"),
             Ttype::Fn(params) => {
-                let mut r = write!(f, "{:?}", params[0]);
+                write!(f, "{:?}", params[0]);
                 for p in params.iter().skip(1) {
-                    r = write!(f, "->");
-                    r = write!(f, "{:?}", p);
+                    write!(f, "->");
+                    write!(f, "{:?}", p);
                 }
-                r
+                Ok(())
             }
             Ttype::Ptr => write!(f, "Ttype::Ptr"),
             Ttype::Array(inner_type) => write!(f, "Ttype::Array({:?})", inner_type),

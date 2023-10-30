@@ -1,5 +1,3 @@
-
-
 use crate::lexer;
 use crate::symbols::{Numeric, Ttype};
 use lexer::{Lexer, Token};
@@ -463,7 +461,7 @@ impl Parser {
         }
     }
     fn skip_token(&mut self, tok: Token) {
-        if &self.current == &tok {
+        if self.current == tok {
             self.advance();
         }
     }
@@ -622,7 +620,7 @@ impl Parser {
         println!("{:?}", self.current);
     }
     fn expect_token(&mut self, tok: Token) -> bool {
-        if &self.current == &tok {
+        if self.current == tok {
             self.advance();
             true
         } else {

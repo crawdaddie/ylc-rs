@@ -356,11 +356,13 @@ printf(\"point y: %f\n\", p.y)
     fn get_paren_expr() {
         let input = r#"(1 + 1)"#;
         let mut lexer = Lexer::new(input.to_string());
-        for expect in [Token::Lp,
+        for expect in [
+            Token::Lp,
             Token::Integer(1),
             Token::Plus,
             Token::Integer(1),
-            Token::Rp] {
+            Token::Rp,
+        ] {
             let tok = lexer.scan_token();
             assert_eq!(expect, tok);
         }
