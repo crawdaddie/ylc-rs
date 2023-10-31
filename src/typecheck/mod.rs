@@ -25,7 +25,7 @@ pub fn infer_types(expr: &mut Program) {
         println!("{:?}", c);
     }
     println!("\x1b[1;0m");
-    let subs = unify_types(&mut cg.constraints, &mut Substitutions::new());
+    let subs = unify_types(cg.constraints, &mut Substitutions::new());
 
     println!("unified substitutions: {:?}", subs);
 }
