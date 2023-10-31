@@ -1,4 +1,4 @@
-use crate::parser::Program;
+use crate::{parser::Program, typecheck::unify::Substitutions};
 
 mod constraints;
 mod unify;
@@ -20,13 +20,12 @@ pub fn infer_types(expr: &mut Program) {
     // println!("{:?}", cg.env);
     cg.env.pop();
 
-    let mut subs = vec![];
-
     println!("\x1b[1;31m");
     for c in &cg.constraints {
         println!("{:?}", c);
     }
     println!("\x1b[1;0m");
-    subs = unify_types(&mut cg.constraints, &mut subs);
+    let subs = unify_types(&mut cg.constraints, &mut Substitutions::new());
+
     println!("unified substitutions: {:?}", subs);
 }

@@ -11,8 +11,8 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Constraint {
-    lhs: Ttype,
-    rhs: Ttype,
+    pub lhs: Ttype,
+    pub rhs: Ttype,
 }
 
 pub static mut TVAR_COUNT: usize = 0;
@@ -27,7 +27,13 @@ fn tvar() -> Ttype {
 }
 
 fn push_constraint(left: Ttype, right: Ttype, constraints: &mut Vec<Constraint>) {
-    if let Ttype::Var(_) = &left {
+    println!(
+        "push l: {:?} r: {:?} equal? {:?}",
+        left,
+        right,
+        left == right
+    );
+    if left != right {
         constraints.push(Constraint {
             lhs: left,
             rhs: right,
@@ -77,7 +83,7 @@ impl ConstraintGenerator {
         }
 
         if let (Some(l), Some(r)) = (final_ttype, fin.get_ttype()) {
-            push_constraint(l, r, &mut self.constraints);
+            self.push_constraint(l, r);
         };
 
         fin.get_ttype()
@@ -214,6 +220,16 @@ impl ConstraintGenerator {
             // TODO: typecheck curried fn
         }
 
+        if let Ast::Id(callee_name, _) = callee {
+            let args: Vec<Ttype> = params.iter().map(|p| p.get_ttype().unwrap()).collect();
+
+            self.push_constraint(ttype, Ttype::Application(callee_name.clone(), args.clone()));
+            println!(
+                "application {:?} {:?} {:?}",
+                callee_name, args, self.constraints
+            );
+        };
+
         for (idx, param) in params.iter_mut().enumerate() {
             self.generate_constraints(param);
             if let Some(param_type) = param.get_ttype() {
@@ -259,24 +275,6 @@ impl ConstraintGenerator {
             Ast::Assignment(assignee_box, value_box, ttype) => {
                 self.assignment(&mut *assignee_box, &mut *value_box, ttype.clone());
             }
-            //
-            // Ast::Fn(mut args_vec, ret_type, mut stmts, ttype) => {
-            //     env.push();
-            //     let mut fn_types = vec![];
-            //     for mut arg in args_vec {
-            //         generate_constraints(&mut arg, constraints, env);
-            //         fn_types.push(arg.get_ttype().unwrap());
-            //     }
-            //
-            //     let mut final_stmt_type = stmts[0].get_ttype().unwrap();
-            //     for mut stmt in stmts {
-            //         generate_constraints(&mut stmt, constraints, env);
-            //         final_stmt_type = stmt.get_ttype().unwrap();
-            //     }
-            //     fn_types.push(final_stmt_type);
-            //     env.pop();
-            // }
-            // // Expr::Body(stmts, ttype) => {} -- Expr::Body == Vec<Ast>
             Ast::If(condition, then, elze, ttype) => {
                 self.if_then_expr(&mut *condition, then, ttype.clone());
                 if let Some(e) = elze {
@@ -291,7 +289,7 @@ impl ConstraintGenerator {
     }
 
     fn push_constraint(&mut self, left: Ttype, right: Ttype) {
-        if let Ttype::Var(_) = &left {
+        if left != right {
             self.constraints.push(Constraint {
                 lhs: left,
                 rhs: right,
@@ -340,15 +338,19 @@ mod tests {
 
         let ex: Vec<Constraint> = vec![
             Constraint {
+                lhs: t!("if_expr_type"),
+                rhs: t!("tuple2"),
+            },
+            Constraint {
+                lhs: t!("if_expr_type"),
+                rhs: t!("tuple1"),
+            },
+            Constraint {
                 lhs: t!("tuple1"),
                 rhs: Ttype::Tuple(vec![
                     Ttype::Numeric(Numeric::Int),
                     Ttype::Numeric(Numeric::Int),
                 ]),
-            },
-            Constraint {
-                lhs: t!("if_expr_type"),
-                rhs: t!("tuple1"),
             },
             Constraint {
                 lhs: t!("tuple2"),
@@ -525,7 +527,15 @@ mod tests {
             vec![
                 Constraint {
                     lhs: Ttype::tvar("call_expr"),
+                    rhs: Ttype::Application("f".into(), vec![Ttype::Numeric(Numeric::Int)]),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("call_expr"),
                     rhs: Ttype::tvar("fn_ret"),
+                },
+                Constraint {
+                    lhs: Ttype::Numeric(Numeric::Int),
+                    rhs: Ttype::tvar("fn_arg_0"),
                 },
                 Constraint {
                     lhs: Ttype::tvar("fn_ref"),
@@ -560,6 +570,13 @@ mod tests {
                 Constraint {
                     lhs: Ttype::tvar("call_expr"),
                     rhs: Ttype::tvar("fn_ret"),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("call_expr"),
+                    rhs: Ttype::Application(
+                        "f".into(),
+                        vec![Ttype::tvar("a_ref"), Ttype::tvar("b_ref")],
+                    ),
                 },
                 Constraint {
                     lhs: Ttype::tvar("a_ref"),

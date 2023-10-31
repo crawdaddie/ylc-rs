@@ -78,6 +78,8 @@ fn main() -> Result<(), io::Error> {
     infer_types(&mut program);
 
     println!("\x1b[1;35m");
+    // let serialized = serde_json::to_string_pretty(&program).unwrap();
+    // println!("{}", serialized);
     for s in &program {
         println!("{:?}", s);
     }

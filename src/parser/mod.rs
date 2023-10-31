@@ -96,79 +96,6 @@ impl Ast {
         }
     }
 }
-/*
-impl fmt::Debug for Ast {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Ast::Id(id, t) => write!(f, "{} ({:?})", id, t),
-            Ast::Binop(token, left, right, t) => {
-                let token_str = match token {
-                    Token::Plus => Some("+"),
-                    Token::Minus => Some("-"),
-                    Token::Star => Some("*"),
-                    Token::Slash => Some("/"),
-                    Token::Modulo => Some("%"),
-                    Token::Gt => Some(">"),
-                    Token::Gte => Some(">="),
-                    Token::Lt => Some("<"),
-                    Token::Lte => Some("<="),
-                    _ => None,
-                };
-                let _ = if token_str.is_some() {
-                    write!(f, "{:?} ({:?}, {:?})", token_str.unwrap(), left, right)
-                } else {
-                    write!(f, "{:?} ({:?}, {:?})", token, left, right)
-                };
-                Ok(())
-            }
-            Ast::Unop(token, operand, t) => {
-                write!(f, "Ast::Unop({:?}, {:?})", token, operand)
-            }
-            Ast::Tuple(exprs, t) => {
-                write!(f, "Ast::Tuple({:?})", exprs)
-            }
-            Ast::Index(obj, idx, t) => {
-                write!(f, "({:?}[{:?}])", obj, idx)
-            }
-            Ast::Assignment(assignee, val, t) => {
-                write!(f, "Ast::Assignment({:?}, {:?})", assignee, val)
-            }
-            Ast::Fn(params, ret_type, body, t) => {
-                write!(f, "({:?}) ({:?})\n\t{:?}", params, t, body)
-            }
-
-            Ast::Body(stmts, t) => {
-                let mut r = Ok(());
-                for s in stmts {
-                    r = write!(f, "{:?}\n", stmts)
-                }
-                r
-            }
-            Ast::Call(callee, params, t) => {
-                write!(f, "Ast::Call({:?}, {:?})", callee, params)
-            }
-            Ast::If(cond, then, elze, t) => {
-                write!(f, "Ast::If({:?}, {:?}, {:?})", cond, then, elze)
-            }
-            Ast::Int8(val) => write!(f, "Ast::Int8({})", val),
-            Ast::Integer(val) => write!(f, "Ast::Integer({})", val),
-            Ast::Number(val) => write!(f, "Ast::Number({})", val),
-            Ast::Bool(val) => write!(f, "Ast::Bool({})", val),
-            Ast::String(val) => write!(f, "Ast::String({})", val),
-
-            Ast::Let(id, t_param, init_expr) => {
-                write!(f, "Ast::Let({:?}, {:?},\n\t{:?})", id, t_param, init_expr)
-            }
-            Ast::FnDeclaration(id, fn_expr) => {
-                write!(f, "fn {:?} {:?}", id, fn_expr)
-            }
-            Ast::TypeDeclaration(id, body) => {
-                write!(f, "Ast::TypeDeclaration({:?}, {:?})", id, body)
-            }
-        }
-    }
-}
-*/
 
 fn tvar() -> Ttype {
     Ttype::Var("".into())
@@ -325,20 +252,6 @@ impl Parser {
         self.parse_expression(Precedence::None)
             .map(|e| assignment_expr!(id.unwrap(), e))
     }
-    // fn parse_assignment(&mut self) {
-    //     match self.current {
-    //         Token::Fn => Some(Statement::FnDeclaration(
-    //             id1,
-    //             self.parse_expression(Precedence::None),
-    //         )),
-    //
-    //         _ => Some(Statement::Let(
-    //             id2.clone().unwrap_or(id1.clone()),
-    //             if id2.is_some() { Some(id1) } else { None },
-    //             self.parse_expression(Precedence::None),
-    //         )),
-    //     };
-    // }
 
     fn parse_let_statement(&mut self) -> Option<Ast> {
         self.advance();
@@ -516,6 +429,7 @@ impl Parser {
         self.advance();
 
         let condition = self.parse_expression(Precedence::None)?;
+        // println!("condition: {:?}", condition);
 
         let then = if self.expect_token(Token::LeftBrace) {
             let body = self.parse_body();
@@ -533,7 +447,7 @@ impl Parser {
 
             let body = self.parse_body();
 
-            self.advance();
+            // self.advance();
             Some(body)
         } else {
             None
@@ -828,6 +742,43 @@ mod tests {
             program
         )
     }
+    #[test]
+    fn test_fn_with_if() {
+        let input = r#"
+        let x = fn (a, b, c) {
+          if a == b {
+            2 * a
+          } else {
+            b + c
+          }
+        }"#;
+
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(
+            vec![Ast::FnDeclaration(
+                "x".into(),
+                Box::new(Ast::Fn(
+                    vec![(id_expr!("a")), (id_expr!("b")), (id_expr!("c")),],
+                    None,
+                    vec![if_expr!(
+                        binop_expr!(Token::Equality, id_expr!("a"), id_expr!("b")),
+                        vec![binop_expr!(Token::Star, int_expr!(2), id_expr!("a"))],
+                        Some(vec![binop_expr!(Token::Plus, id_expr!("b"), id_expr!("c"))]),
+                        tvar()
+                    )],
+                    tvar(),
+                ))
+            )],
+            program
+        )
+    }
+    // vec![binop_expr!(
+    //     Token::Plus,
+    //     binop_expr!(Token::Plus, id_expr!("a"), id_expr!("b")),
+    //     id_expr!("c")
+    // )],
 
     #[test]
     fn test_call_expr() {
