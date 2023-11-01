@@ -20,11 +20,7 @@ fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
 
 fn update_types(ast: &mut Ast, subs: &Substitutions) {
     match ast {
-        Ast::Let(_id, _type_expr, value) => {
-            if let Some(value) = value {
-                update_types(&mut *value, subs)
-            }
-        }
+        Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs),
         Ast::FnDeclaration(_id, fn_expr) => update_types(&mut *fn_expr, subs),
         Ast::TypeDeclaration(_id, _type_expr) => {}
         Ast::Id(_id, ttype) => {
