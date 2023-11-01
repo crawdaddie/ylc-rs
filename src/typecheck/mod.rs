@@ -25,23 +25,23 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
                 update_types(&mut *value, subs)
             }
         }
-        Ast::FnDeclaration(id, fn_expr) => update_types(&mut *fn_expr, subs),
+        Ast::FnDeclaration(_id, fn_expr) => update_types(&mut *fn_expr, subs),
         Ast::TypeDeclaration(_id, _type_expr) => {}
-        Ast::Id(id, ttype) => {
+        Ast::Id(_id, ttype) => {
             apply_substitution(ttype, subs);
             // self.id(id.clone(), ttype.clone());
         }
         Ast::Fn(params_vec, _ret_type_ast, body, ttype) => {
             apply_substitution(ttype, subs);
-            for mut p in params_vec {
-                update_types(&mut p, subs);
+            for p in params_vec {
+                update_types(p, subs);
             }
-            for mut s in body {
-                update_types(&mut s, subs);
+            for s in body {
+                update_types(s, subs);
             }
         }
 
-        Ast::Binop(token, left_box, right_box, ttype) => {
+        Ast::Binop(_token, left_box, right_box, ttype) => {
             apply_substitution(ttype, subs);
 
             // self.binop(token.clone(), &*left_box, &*right_box, ttype.clone());
@@ -49,15 +49,15 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
             update_types(&mut *right_box, subs);
         }
 
-        Ast::Unop(token, operand_box, ttype) => {
+        Ast::Unop(_token, operand_box, ttype) => {
             apply_substitution(ttype, subs);
             update_types(&mut *operand_box, subs);
         }
 
         Ast::Tuple(exprs_vec, ttype) => {
             apply_substitution(ttype, subs);
-            for mut x in exprs_vec {
-                update_types(&mut x, subs);
+            for x in exprs_vec {
+                update_types(x, subs);
             }
         }
 
@@ -75,12 +75,12 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
         Ast::If(condition, then, elze, ttype) => {
             apply_substitution(ttype, subs);
             update_types(&mut *condition, subs);
-            for mut t in then {
-                update_types(&mut t, subs);
+            for t in then {
+                update_types(t, subs);
             }
             if let Some(e) = elze {
-                for mut t in e {
-                    update_types(&mut t, subs);
+                for t in e {
+                    update_types(t, subs);
                 }
             }
         }
@@ -88,8 +88,8 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
             apply_substitution(ttype, subs);
             update_types(&mut *callee_box, subs);
 
-            for mut a in params_vec {
-                update_types(&mut a, subs);
+            for a in params_vec {
+                update_types(a, subs);
             }
         }
         _ => (),
@@ -111,7 +111,7 @@ pub fn infer_types(expr: &mut Program) {
     let subs = unify_constraints(cg.constraints, &mut Substitutions::new());
 
     println!("unified substitutions: {:?}", subs);
-    for mut e in expr {
-        update_types(&mut e, &subs);
+    for e in expr {
+        update_types(e, &subs);
     }
 }

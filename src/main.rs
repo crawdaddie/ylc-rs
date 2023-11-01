@@ -11,7 +11,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::Module;
 use inkwell::OptimizationLevel;
 
-use crate::parser::print_ast;
+
 use crate::typecheck::infer_types;
 
 mod codegen;

@@ -97,7 +97,7 @@ impl Ast {
             | Ast::Body(_, ref mut ttype)
             | Ast::Call(_, _, ref mut ttype)
             | Ast::If(_, _, _, ref mut ttype) => {
-                if let Ttype::Var(n) = ttype {
+                if let Ttype::Var(_n) = ttype {
                     // if n.is_empty() {
                     *ttype = t
                     // }
@@ -144,26 +144,26 @@ pub fn print_ast(ast: Ast, indent: usize) {
     print!("{}", ident);
     match ast {
         Ast::Let(
-            id,
-            type_param, // optional explicit type parameter
-            assignment, // optional immediate assignment expression
+            _id,
+            _type_param, // optional explicit type parameter
+            _assignment, // optional immediate assignment expression
         ) => {}
         Ast::FnDeclaration(id, fn_expr) => {
             print!("fn {} ", id);
             print_ast(*fn_expr, indent);
         }
-        Ast::TypeDeclaration(id, type_expr) => {}
+        Ast::TypeDeclaration(_id, _type_expr) => {}
 
         //expressions
-        Ast::Id(id, ttype) => {
+        Ast::Id(id, _ttype) => {
             print!("{}, ", id);
         }
-        Ast::Binop(token, l, r, ttype) => {}
-        Ast::Unop(token, operand, ttype) => {}
-        Ast::Tuple(exprs, ttype) => {}
-        Ast::Index(obj, idx, ttype) => {}
-        Ast::Assignment(id, val, ttype) => {}
-        Ast::Fn(params, ret, body, ttype) => {
+        Ast::Binop(_token, _l, _r, _ttype) => {}
+        Ast::Unop(_token, _operand, _ttype) => {}
+        Ast::Tuple(_exprs, _ttype) => {}
+        Ast::Index(_obj, _idx, _ttype) => {}
+        Ast::Assignment(_id, _val, _ttype) => {}
+        Ast::Fn(params, ret, body, _ttype) => {
             for p in params {
                 print_ast(p, 0);
             }
@@ -175,16 +175,16 @@ pub fn print_ast(ast: Ast, indent: usize) {
                 print_ast(s, indent + 1);
             }
         }
-        Ast::Call(callable, args, ttype) => {}
-        Ast::Body(stmts, ttype) => {}
-        Ast::If(cond, then, elze, ttype) => {}
+        Ast::Call(_callable, _args, _ttype) => {}
+        Ast::Body(_stmts, _ttype) => {}
+        Ast::If(_cond, _then, _elze, _ttype) => {}
 
         // literals
-        Ast::Int8(v) => {}
-        Ast::Integer(v) => {}
-        Ast::Number(v) => {}
-        Ast::Bool(v) => {}
-        Ast::String(v) => {}
+        Ast::Int8(_v) => {}
+        Ast::Integer(_v) => {}
+        Ast::Number(_v) => {}
+        Ast::Bool(_v) => {}
+        Ast::String(_v) => {}
     }
 }
 
