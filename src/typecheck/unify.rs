@@ -1,63 +1,8 @@
+use super::constraints::Constraint;
+use crate::symbols::Ttype;
 use std::collections::HashMap;
 
-use crate::symbols::Ttype;
-
-use super::constraints::Constraint;
-// #[derive(Clone)]
-// pub struct Substitutions(HashMap<String, Ttype>);
-// impl Substitutions {
-//     pub fn insert(&mut self, k: String, v: Ttype) {
-//         self.0.insert(k, v);
-//     }
-//     pub fn get(&self, k: String) -> Option<Ttype> {
-//         while
-//         self.get(k)
-//     }
-// }
 pub type Substitutions = HashMap<String, Ttype>;
-fn unify_var(left: Ttype, right: Ttype, subs: &mut Substitutions) {
-    if let Ttype::Var(lname) = &left {
-        if let Some(r) = subs.get(&lname.clone()) {
-            // left is in subs
-            // unify(left, r.clone(), subs);
-        } else {
-            // add left to subs
-            if !occurs_check(&left, &right) {
-                subs.insert(lname.clone(), right);
-            }
-        }
-    }
-}
-
-fn occurs_check(left: &Ttype, right: &Ttype) -> bool {
-    match right {
-        Ttype::Fn(terms) | Ttype::Tuple(terms) | Ttype::Application(_, terms) => {
-            let mut occurs = false;
-            for term in terms {
-                if occurs_check(left, term) {
-                    occurs = true;
-                    break;
-                }
-            }
-            occurs
-        }
-        Ttype::MaxNumeric(l, r) => occurs_check(left, &*l) || occurs_check(left, &*r),
-        Ttype::Array(b) => occurs_check(left, &*b),
-        _ => left == right,
-    }
-}
-
-fn follow_link(name: String, subs: &mut Substitutions) {
-    let mut n = name.clone();
-    if let Some(existing) = subs.get(&n) {
-        if let Ttype::Var(n) = existing {
-            follow_link(n.clone(), subs);
-        }
-    } else {
-        println!("followed {} to {}", name, n);
-        return;
-    }
-}
 
 /// Unifies variable v with term x, using subs.
 /// Returns updated subs or None on failure.

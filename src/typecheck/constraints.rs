@@ -230,42 +230,44 @@ impl ConstraintGenerator {
 
     pub fn generate_constraints(&mut self, ast: &Ast) {
         match ast {
-            Ast::Let(_id, _type_expr, value) => {
-                if value.is_some() {
-                    self.generate_constraints(&(*(value.as_ref().unwrap())))
-                }
+            Ast::Let(id, _type_expr, Some(value)) => {
+                self.generate_constraints(value);
+                self.env.bind_symbol(
+                    id.clone(),
+                    SymbolValue::Variable((*value).get_ttype().unwrap()),
+                );
             }
-            Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), &*fn_expr),
+            Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), fn_expr),
             Ast::TypeDeclaration(_id, _type_expr) => {}
             Ast::Id(id, ttype) => {
                 self.id(id.clone(), ttype.clone());
             }
 
             Ast::Binop(token, left_box, right_box, ttype) => {
-                self.binop(token.clone(), &*left_box, &*right_box, ttype.clone());
+                self.binop(token.clone(), left_box, right_box, ttype.clone());
             }
 
             Ast::Unop(token, operand_box, ttype) => {
-                self.unop(token.clone(), &*operand_box, ttype.clone());
+                self.unop(token.clone(), operand_box, ttype.clone());
             }
 
             Ast::Tuple(exprs_vec, ttype) => self.tuple(exprs_vec, ttype.clone()),
 
             Ast::Index(object_box, index_box, ttype) => {
-                self.index(&*object_box, &*index_box, ttype.clone());
+                self.index(object_box, index_box, ttype.clone());
             }
 
             Ast::Assignment(assignee_box, value_box, ttype) => {
-                self.assignment(&*assignee_box, &*value_box, ttype.clone());
+                self.assignment(assignee_box, value_box, ttype.clone());
             }
             Ast::If(condition, then, elze, ttype) => {
-                self.if_then_expr(&*condition, then, ttype.clone());
+                self.if_then_expr(condition, then, ttype.clone());
                 if let Some(e) = elze {
                     self.body(e, Some(ttype.clone()));
                 }
             }
             Ast::Call(callee_box, params_vec, ttype) => {
-                self.call(&*callee_box, params_vec, ttype.clone());
+                self.call(callee_box, params_vec, ttype.clone());
             }
             _ => (),
         }
