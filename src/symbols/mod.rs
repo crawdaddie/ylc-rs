@@ -27,6 +27,26 @@ pub enum Ttype {
     Nth(usize, Box<Ttype>),
 }
 
+pub fn tint8() -> Ttype {
+    Ttype::Numeric(Numeric::Int8)
+}
+
+pub fn tint() -> Ttype {
+    Ttype::Numeric(Numeric::Int)
+}
+
+pub fn tnum() -> Ttype {
+    Ttype::Numeric(Numeric::Num)
+}
+
+pub fn tvar(n: &str) -> Ttype {
+    Ttype::Var(n.into())
+}
+
+pub fn tbool() -> Ttype {
+    Ttype::Bool
+}
+
 impl Ttype {
     pub fn tvar(n: &str) -> Self {
         Ttype::Var(n.into())
@@ -46,9 +66,9 @@ impl fmt::Debug for Ttype {
             }
             Ttype::Str => write!(f, "Str"),
             Ttype::Bool => write!(f, "Bool"),
-            Ttype::Tuple(types) => write!(f, "Ttype::Tuple({:?})", types),
-            Ttype::Struct => write!(f, "Ttype::Struct"),
-            Ttype::Void => write!(f, "Ttype::Void"),
+            Ttype::Tuple(types) => write!(f, "Tuple({:?})", types),
+            Ttype::Struct => write!(f, "Struct"),
+            Ttype::Void => write!(f, "Void"),
             Ttype::Fn(params) => {
                 write!(f, "{:?}", params[0]);
                 for p in params.iter().skip(1) {

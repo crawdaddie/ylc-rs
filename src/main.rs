@@ -11,6 +11,7 @@ use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::Module;
 use inkwell::OptimizationLevel;
 
+use crate::parser::print_ast;
 use crate::typecheck::infer_types;
 
 mod codegen;
@@ -26,6 +27,7 @@ struct Arguments {
     code: bool,
     #[clap(long, short, action)]
     interactive: bool,
+
     input: String,
 }
 
@@ -78,9 +80,8 @@ fn main() -> Result<(), io::Error> {
     infer_types(&mut program);
 
     println!("\x1b[1;35m");
-    // let serialized = serde_json::to_string_pretty(&program).unwrap();
-    // println!("{}", serialized);
     for s in &program {
+        // print_ast(s.clone(), 0);
         println!("{:?}", s);
     }
     println!("\x1b[1;0m");
@@ -103,9 +104,18 @@ fn main() -> Result<(), io::Error> {
 
     if args.interactive {
         let _ = repl::repl(|line| {
-            let program = parser::parse(line);
-            let mut ctx = ts_ctx.lock().unwrap();
+            let mut program = parser::parse(line);
 
+            infer_types(&mut program);
+
+            println!("\x1b[1;35m");
+            for s in &program {
+                // print_ast(s.clone(), 0);
+                println!("{:?}", s);
+            }
+            println!("\x1b[1;0m");
+
+            let mut ctx = ts_ctx.lock().unwrap();
             if codegen_program(program, &mut ctx).is_ok() {
                 ctx.module.print_to_stderr();
 

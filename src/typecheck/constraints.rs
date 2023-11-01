@@ -26,20 +26,6 @@ fn tvar() -> Ttype {
     tv
 }
 
-fn push_constraint(left: Ttype, right: Ttype, constraints: &mut Vec<Constraint>) {
-    println!(
-        "push l: {:?} r: {:?} equal? {:?}",
-        left,
-        right,
-        left == right
-    );
-    if left != right {
-        constraints.push(Constraint {
-            lhs: left,
-            rhs: right,
-        });
-    }
-}
 fn max_numeric_type(l: Ttype, r: Ttype) -> Option<Ttype> {
     match (&l, &r) {
         (Ttype::Numeric(lnum), rnum) => match rnum {
@@ -62,6 +48,7 @@ pub struct ConstraintGenerator {
     pub constraints: Vec<Constraint>,
     pub env: Env,
 }
+
 impl ConstraintGenerator {
     pub fn new() -> Self {
         let mut cgen = Self {
@@ -71,7 +58,7 @@ impl ConstraintGenerator {
         cgen.env.push();
         cgen
     }
-    fn body(&mut self, body: &mut Vec<Ast>, final_ttype: Option<Ttype>) -> Option<Ttype> {
+    fn body(&mut self, body: &Vec<Ast>, final_ttype: Option<Ttype>) -> Option<Ttype> {
         if body.is_empty() {
             return None;
         }
@@ -88,9 +75,8 @@ impl ConstraintGenerator {
 
         fin.get_ttype()
     }
-    fn fn_declaration(&mut self, id: Identifier, fn_expr: &mut Ast) {
-        fn_expr.set_ttype(tvar());
-        if let Ast::Fn(args_vec, _ret_type_ast, ref mut stmts, ttype) = fn_expr {
+    fn fn_declaration(&mut self, id: Identifier, fn_expr: &Ast) {
+        if let Ast::Fn(args_vec, _ret_type_ast, stmts, ttype) = fn_expr {
             self.env.push();
             let mut fn_types = vec![];
             for arg in args_vec {
@@ -126,7 +112,7 @@ impl ConstraintGenerator {
             self.push_constraint(ttype, t.clone());
         }
     }
-    fn binop(&mut self, token: Token, left: &mut Ast, right: &mut Ast, ttype: Ttype) {
+    fn binop(&mut self, token: Token, left: &Ast, right: &Ast, ttype: Ttype) {
         self.generate_constraints(left);
         self.generate_constraints(right);
         match token {
@@ -140,11 +126,15 @@ impl ConstraintGenerator {
             }
             Token::Equality | Token::NotEqual | Token::Lt | Token::Lte | Token::Gt | Token::Gte => {
                 self.push_constraint(ttype, Ttype::Bool);
+
+                if let (Some(tl), Some(tr)) = (left.get_ttype(), right.get_ttype()) {
+                    self.push_constraint(tl, tr);
+                }
             }
             _ => {}
         }
     }
-    fn unop(&mut self, token: Token, operand: &mut Ast, ttype: Ttype) {
+    fn unop(&mut self, token: Token, operand: &Ast, ttype: Ttype) {
         self.generate_constraints(operand);
         match token {
             Token::Minus => {
@@ -157,7 +147,7 @@ impl ConstraintGenerator {
         }
     }
 
-    fn tuple(&mut self, exprs: &mut Vec<Ast>, ttype: Ttype) {
+    fn tuple(&mut self, exprs: &Vec<Ast>, ttype: Ttype) {
         let mut ttv = vec![];
         for e in exprs {
             self.generate_constraints(e);
@@ -165,7 +155,7 @@ impl ConstraintGenerator {
         }
         self.push_constraint(ttype, Ttype::Tuple(ttv));
     }
-    fn index(&mut self, object: &mut Ast, idx: &mut Ast, _ttype: Ttype) {
+    fn index(&mut self, object: &Ast, idx: &Ast, _ttype: Ttype) {
         self.generate_constraints(object);
         //     // TODO: create Ttype::Array(last type of obj array types)
         //     // TODO: push_constraint obj.ttype == Ttype::Array['t]
@@ -175,7 +165,7 @@ impl ConstraintGenerator {
         // TODO:
         // if obj has ttype Array<'t>, then ast node ttype == 't
     }
-    fn assignment(&mut self, assignee: &mut Ast, value: &mut Ast, ttype: Ttype) {
+    fn assignment(&mut self, assignee: &Ast, value: &Ast, ttype: Ttype) {
         self.generate_constraints(assignee);
         self.generate_constraints(value);
         self.push_constraint(ttype.clone(), assignee.get_ttype().unwrap());
@@ -183,8 +173,8 @@ impl ConstraintGenerator {
     }
     fn if_then_expr(
         &mut self,
-        condition: &mut Ast,
-        then: &mut Vec<Ast>,
+        condition: &Ast,
+        then: &Vec<Ast>,
         // elze: &mut Option<Vec<Ast>>,
         ttype: Ttype,
     ) {
@@ -196,7 +186,7 @@ impl ConstraintGenerator {
         self.body(then, Some(ttype.clone()));
     }
 
-    fn call(&mut self, callee: &mut Ast, params: &mut Vec<Ast>, ttype: Ttype) {
+    fn call(&mut self, callee: &Ast, params: &Vec<Ast>, ttype: Ttype) {
         self.generate_constraints(callee);
         let env = &self.env;
 
@@ -230,7 +220,7 @@ impl ConstraintGenerator {
             );
         };
 
-        for (idx, param) in params.iter_mut().enumerate() {
+        for (idx, param) in params.iter().enumerate() {
             self.generate_constraints(param);
             if let Some(param_type) = param.get_ttype() {
                 self.push_constraint(param_type.clone(), fn_types[idx].clone());
@@ -238,51 +228,44 @@ impl ConstraintGenerator {
         }
     }
 
-    pub fn generate_constraints(&mut self, ast: &mut Ast) {
-        ast.set_ttype(tvar());
-
+    pub fn generate_constraints(&mut self, ast: &Ast) {
         match ast {
             Ast::Let(_id, _type_expr, value) => {
                 if value.is_some() {
-                    self.generate_constraints(&mut *(value.as_mut().unwrap()))
+                    self.generate_constraints(&(*(value.as_ref().unwrap())))
                 }
             }
-            Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), &mut *fn_expr),
+            Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), &*fn_expr),
             Ast::TypeDeclaration(_id, _type_expr) => {}
             Ast::Id(id, ttype) => {
                 self.id(id.clone(), ttype.clone());
             }
 
             Ast::Binop(token, left_box, right_box, ttype) => {
-                self.binop(
-                    token.clone(),
-                    &mut *left_box,
-                    &mut *right_box,
-                    ttype.clone(),
-                );
+                self.binop(token.clone(), &*left_box, &*right_box, ttype.clone());
             }
 
             Ast::Unop(token, operand_box, ttype) => {
-                self.unop(token.clone(), &mut *operand_box, ttype.clone());
+                self.unop(token.clone(), &*operand_box, ttype.clone());
             }
 
             Ast::Tuple(exprs_vec, ttype) => self.tuple(exprs_vec, ttype.clone()),
 
             Ast::Index(object_box, index_box, ttype) => {
-                self.index(&mut *object_box, &mut *index_box, ttype.clone());
+                self.index(&*object_box, &*index_box, ttype.clone());
             }
 
             Ast::Assignment(assignee_box, value_box, ttype) => {
-                self.assignment(&mut *assignee_box, &mut *value_box, ttype.clone());
+                self.assignment(&*assignee_box, &*value_box, ttype.clone());
             }
             Ast::If(condition, then, elze, ttype) => {
-                self.if_then_expr(&mut *condition, then, ttype.clone());
+                self.if_then_expr(&*condition, then, ttype.clone());
                 if let Some(e) = elze {
                     self.body(e, Some(ttype.clone()));
                 }
             }
             Ast::Call(callee_box, params_vec, ttype) => {
-                self.call(&mut *callee_box, params_vec, ttype.clone());
+                self.call(&*callee_box, params_vec, ttype.clone());
             }
             _ => (),
         }

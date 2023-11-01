@@ -19,7 +19,7 @@ pub enum Precedence {
 }
 
 pub type Identifier = String;
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum Ast {
     Let(
         Identifier,
@@ -49,6 +49,16 @@ pub enum Ast {
     Bool(bool),
     String(String),
 }
+pub static mut TVAR_COUNT: usize = 0;
+
+fn tvar() -> Ttype {
+    let tv;
+    unsafe {
+        tv = Ttype::Var(format!("t{}", TVAR_COUNT));
+        TVAR_COUNT += 1;
+    };
+    tv
+}
 
 impl Ast {
     pub fn get_ttype(&self) -> Option<Ttype> {
@@ -75,6 +85,7 @@ impl Ast {
     }
 
     pub fn set_ttype(&mut self, t: Ttype) {
+        println!("set ttype {:?}", t);
         match self {
             Ast::Id(_, ref mut ttype)
             | Ast::Binop(_, _, _, ref mut ttype)
@@ -87,9 +98,9 @@ impl Ast {
             | Ast::Call(_, _, ref mut ttype)
             | Ast::If(_, _, _, ref mut ttype) => {
                 if let Ttype::Var(n) = ttype {
-                    if n.is_empty() {
-                        *ttype = t
-                    }
+                    // if n.is_empty() {
+                    *ttype = t
+                    // }
                 }
             }
             _ => {}
@@ -97,8 +108,84 @@ impl Ast {
     }
 }
 
-fn tvar() -> Ttype {
-    Ttype::Var("".into())
+/// implement PartialEq for Ast to ignore ttype Tvar names
+impl PartialEq for Ast {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Ast::Let(id1, t1, e1), Ast::Let(id2, t2, e2)) => id1 == id2 && t1 == t2 && e1 == e2,
+            (Ast::FnDeclaration(id1, e1), Ast::FnDeclaration(id2, e2)) => id1 == id2 && e1 == e2,
+            (Ast::TypeDeclaration(id1, e1), Ast::TypeDeclaration(id2, e2)) => {
+                id1 == id2 && e1 == e2
+            }
+            (Ast::Id(id1, _), Ast::Id(id2, _)) => id1 == id2,
+            (Ast::Binop(t1, e1, e2, _), Ast::Binop(t2, e3, e4, _)) => {
+                t1 == t2 && e1 == e3 && e2 == e4
+            }
+            (Ast::Unop(t1, e1, _), Ast::Unop(t2, e2, _)) => t1 == t2 && e1 == e2,
+            (Ast::Tuple(v1, _), Ast::Tuple(v2, _)) => v1 == v2,
+            (Ast::Index(e1, e2, _), Ast::Index(e3, e4, _)) => e1 == e3 && e2 == e4,
+            (Ast::Assignment(e1, e2, _), Ast::Assignment(e3, e4, _)) => e1 == e3 && e2 == e4,
+            (Ast::Fn(v1, t1, v2, _), Ast::Fn(v3, t2, v4, _)) => v1 == v3 && t1 == t2 && v2 == v4,
+            (Ast::Call(e1, v1, _), Ast::Call(e2, v2, _)) => e1 == e2 && v1 == v2,
+            (Ast::Body(v1, _), Ast::Body(v2, _)) => v1 == v2,
+            (Ast::If(e1, v1, t1, _), Ast::If(e2, v2, t2, _)) => e1 == e2 && v1 == v2 && t1 == t2,
+            (Ast::Int8(i1), Ast::Int8(i2)) => i1 == i2,
+            (Ast::Integer(i1), Ast::Integer(i2)) => i1 == i2,
+            (Ast::Number(n1), Ast::Number(n2)) => n1 == n2,
+            (Ast::Bool(b1), Ast::Bool(b2)) => b1 == b2,
+            (Ast::String(s1), Ast::String(s2)) => s1 == s2,
+            _ => false,
+        }
+    }
+}
+pub fn print_ast(ast: Ast, indent: usize) {
+    // TODO: finish this crappy function
+    let ident = format!("{: ^1$}", "", indent);
+    print!("{}", ident);
+    match ast {
+        Ast::Let(
+            id,
+            type_param, // optional explicit type parameter
+            assignment, // optional immediate assignment expression
+        ) => {}
+        Ast::FnDeclaration(id, fn_expr) => {
+            print!("fn {} ", id);
+            print_ast(*fn_expr, indent);
+        }
+        Ast::TypeDeclaration(id, type_expr) => {}
+
+        //expressions
+        Ast::Id(id, ttype) => {
+            print!("{}, ", id);
+        }
+        Ast::Binop(token, l, r, ttype) => {}
+        Ast::Unop(token, operand, ttype) => {}
+        Ast::Tuple(exprs, ttype) => {}
+        Ast::Index(obj, idx, ttype) => {}
+        Ast::Assignment(id, val, ttype) => {}
+        Ast::Fn(params, ret, body, ttype) => {
+            for p in params {
+                print_ast(p, 0);
+            }
+            if let Some(ret) = ret {
+                print_ast(*ret, 0);
+            }
+            println!();
+            for s in body {
+                print_ast(s, indent + 1);
+            }
+        }
+        Ast::Call(callable, args, ttype) => {}
+        Ast::Body(stmts, ttype) => {}
+        Ast::If(cond, then, elze, ttype) => {}
+
+        // literals
+        Ast::Int8(v) => {}
+        Ast::Integer(v) => {}
+        Ast::Number(v) => {}
+        Ast::Bool(v) => {}
+        Ast::String(v) => {}
+    }
 }
 
 pub type Block = Vec<Ast>;
@@ -553,6 +640,10 @@ pub fn parse(input: String) -> Program {
 mod tests {
     use super::*;
 
+    fn tvar() -> Ttype {
+        Ttype::tvar("")
+    }
+
     #[test]
     fn test_let() {
         let input = r#"
@@ -626,6 +717,7 @@ mod tests {
     }
 
     #[test]
+
     fn test_grouping() {
         let input = r#"(1 + 1)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
@@ -640,6 +732,7 @@ mod tests {
     #[test]
     fn test_tuple() {
         let input = r#"(1, 1)"#;
+
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
 

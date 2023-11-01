@@ -1,8 +1,9 @@
 let x = fn (a, b, c) {
-  if (a == b) {
+  if a == b {
     2 * a
   } else {
     b + c
   }
 }
+# let a = if b == 1 { (0,1) } else { (2, 3) }
 
