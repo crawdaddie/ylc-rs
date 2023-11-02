@@ -3,7 +3,47 @@ use crate::symbols::Ttype;
 use std::collections::HashMap;
 
 pub type Substitutions = HashMap<String, Ttype>;
+fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
+    match &t {
+        Ttype::Var(t_name) => {
+            if let Some(t_lookup) = subs.get(&t_name.clone()) {
+                t_lookup.clone()
+            } else {
+                t
+            }
+        }
+        Ttype::MaxNumeric(ref x, ref y) => {
+            // resolve a max numeric type into the max of two types if possible
+            let xresolved = lookup_contained_types(*x.clone(), subs);
+            let yresolved = lookup_contained_types(*y.clone(), subs);
+            match (xresolved, yresolved) {
+                (Ttype::Numeric(xnum), Ttype::Numeric(ynum)) => {
+                    Ttype::Numeric(if xnum >= ynum { xnum } else { ynum })
+                }
+                _ => Ttype::MaxNumeric(
+                    Box::new(lookup_contained_types(*x.clone(), subs).clone()),
+                    Box::new(lookup_contained_types(*y.clone(), subs).clone()),
+                ),
+            }
+        }
+        Ttype::Application(fn_name, args) => {
+            let new_args = args
+                .iter()
+                .map(|v| lookup_contained_types(v.clone(), subs))
+                .collect();
+            Ttype::Application(fn_name.clone(), new_args)
+        }
 
+        Ttype::Tuple(vals) => {
+            let new_vals = vals
+                .iter()
+                .map(|v| lookup_contained_types(v.clone(), subs))
+                .collect();
+            Ttype::Tuple(new_vals)
+        }
+        _ => t,
+    }
+}
 /// Unifies variable v with term x, using subs.
 /// Returns updated subs or None on failure.
 /// The algorithm begins with the set of all constraints, and the empty substitution.
@@ -33,12 +73,18 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
                 unify(lhs, v2_follow, subs);
             }
         }
+        // (Ttype::Var(v), Ttype::MaxNumeric(w, x)) => {
+        //     w = subs.get(w.var_name().unwrap().into());
+        //     subs.insert(v.clone(), *w.clone());
+        // }
         (Ttype::Var(v), t) => {
-            if occurs(v, t, subs) {
+            let lookup = lookup_contained_types(t.clone(), subs);
+            println!("unify {:?}::{:?}\n{:?}", lhs, rhs, subs);
+            if occurs(v, &lookup, subs) {
                 panic!("Occurs check failed");
             }
 
-            subs.insert(v.clone(), t.clone());
+            subs.insert(v.clone(), lookup);
         }
         (t, Ttype::Var(v)) => {
             if occurs(v, t, subs) {
@@ -67,6 +113,7 @@ fn occurs(l: &str, r: &Ttype, subs: &HashMap<String, Ttype>) -> bool {
         Ttype::Application(_, args) | Ttype::Tuple(args) => {
             args.iter().any(|arg| occurs(l, arg, subs))
         }
+        Ttype::MaxNumeric(u, v) => occurs(l, &u, subs) || occurs(l, &v, subs),
         // ... other types
         _ => false,
     }

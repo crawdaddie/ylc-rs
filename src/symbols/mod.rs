@@ -26,6 +26,23 @@ pub enum Ttype {
     Application(String, Vec<Ttype>),
     Nth(usize, Box<Ttype>),
 }
+impl Ttype {
+    pub fn is_var(&self) -> bool {
+        matches!(self, Ttype::Var(_))
+    }
+
+    pub fn is_num(&self) -> bool {
+        matches!(self, Ttype::Numeric(Numeric::Num))
+    }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self, Ttype::Numeric(Numeric::Int))
+    }
+
+    pub fn is_fn(&self) -> bool {
+        matches!(self, Ttype::Fn(_))
+    }
+}
 
 pub fn tint8() -> Ttype {
     Ttype::Numeric(Numeric::Int8)

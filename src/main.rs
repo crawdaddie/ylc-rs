@@ -13,6 +13,7 @@ use inkwell::OptimizationLevel;
 use symbols::Symbol;
 
 use crate::codegen::Compiler;
+use crate::symbols::{Numeric, Ttype};
 use crate::typecheck::infer_types;
 
 mod codegen;
@@ -118,12 +119,18 @@ fn main() -> Result<(), io::Error> {
             .unwrap();
         let name = main_fn.get_name().to_str().unwrap().to_string();
 
-        let compiled_fn =
-            unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
-
-        unsafe {
-            println!("=> {}", compiled_fn.unwrap().call());
+        match program.last().unwrap().get_ttype().unwrap() {
+            Ttype::Numeric(Numeric::Int) => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+            Ttype::Numeric(Numeric::Num) => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+            _ => {}
         }
+        // unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
     }
 
     // if codegen_program(program, &mut ctx).is_ok() {

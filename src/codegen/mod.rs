@@ -2,15 +2,15 @@ use std::error::Error;
 
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
-use crate::symbols::{Env, Symbol};
+use crate::symbols::{Env, Numeric, Symbol, Ttype};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::values::{
-    AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, FloatValue, FunctionValue,
-    GenericValue, IntMathValue, PointerValue,
+    AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
+    FunctionValue, GenericValue, IntMathValue, IntValue, PointerValue,
 };
 use inkwell::OptimizationLevel;
 
@@ -20,6 +20,20 @@ pub struct Compiler<'a, 'ctx> {
     pub fpm: &'a PassManager<FunctionValue<'ctx>>,
     pub module: &'a Module<'ctx>,
     env: Env<Symbol>,
+}
+
+// AnyValueEnum:    ArrayValue, IntValue, FloatValue, PhiValue, FunctionValue, PointerValue, StructValue, VectorValue, InstructionValue, MetadataValue}
+// BasicValueEnum:  ArrayValue, IntValue, FloatValue, PointerValue, StructValue, VectorValue}
+fn to_basic_value(x: AnyValueEnum) -> BasicValueEnum {
+    match x {
+        AnyValueEnum::ArrayValue(v) => v.as_basic_value_enum(),
+        AnyValueEnum::IntValue(v) => v.as_basic_value_enum(),
+        AnyValueEnum::FloatValue(v) => v.as_basic_value_enum(),
+        AnyValueEnum::PointerValue(v) => v.as_basic_value_enum(),
+        AnyValueEnum::StructValue(v) => v.as_basic_value_enum(),
+        AnyValueEnum::VectorValue(v) => v.as_basic_value_enum(),
+        _ => panic!(),
+    }
 }
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn compile(
@@ -38,6 +52,23 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         };
         compiler.compile_program(program)
     }
+    // fn into_value(&mut self, v: AnyValueEnum) {
+    //     TryFrom::<dyn BasicValue>::try_from(v);
+    // }
+    fn add_return_value(&mut self, v: AnyValueEnum) {
+        match v {
+            AnyValueEnum::IntValue(_) => {
+                self.builder.build_return(Some(&v.into_int_value()));
+            }
+
+            AnyValueEnum::FloatValue(_) => {
+                self.builder.build_return(Some(&v.into_float_value()));
+            }
+            _ => {
+                self.builder.build_return(None);
+            }
+        }
+    }
     fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
         self.env.push();
 
@@ -48,11 +79,146 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let basic_block = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(basic_block);
 
+        let mut v = None;
         for stmt in program {
-            let _ = self.codegen(&stmt);
+            v = self.codegen(&stmt);
         }
-        self.builder.build_return(None);
+
+        self.add_return_value(v.unwrap());
+
+        // let i = self.context.i32_type().const_int(2, false);
+        // self.builder.build_return(Some(&i));
         Ok(main_fn)
+    }
+
+    fn cast_numeric(
+        &mut self,
+        x: BasicValueEnum<'ctx>,
+        desired_cast: Numeric,
+    ) -> BasicValueEnum<'ctx> {
+        match (x, desired_cast) {
+            (BasicValueEnum::IntValue(i), Numeric::Int) => x,
+            (BasicValueEnum::IntValue(i), Numeric::Num) => self
+                .builder
+                .build_signed_int_to_float(i, self.context.f64_type(), "int_to_float_cast")
+                .as_basic_value_enum(),
+            (BasicValueEnum::FloatValue(f), Numeric::Num) => x,
+            _ => panic!(),
+        }
+    }
+
+    fn codegen_numeric_binop(
+        &mut self,
+        token: Token,
+        left: &Ast,
+        right: &Ast,
+        ttype: Ttype,
+    ) -> Option<AnyValueEnum<'ctx>> {
+        let desired_cast = match ttype {
+            Ttype::Numeric(num) => num,
+            _ => panic!("attempt to use a numeric binop with non-numeric types"),
+        };
+        let l = to_basic_value(self.codegen(&left).unwrap());
+        let r = to_basic_value(self.codegen(&right).unwrap());
+
+        println!("binop {:?} {:?} {:?} [{:?}]", l, token, r, ttype);
+
+        match token {
+            Token::Plus if desired_cast == Numeric::Num => Some(
+                self.builder
+                    .build_float_add(
+                        self.cast_numeric(l, desired_cast).into_float_value(),
+                        self.cast_numeric(l, desired_cast).into_float_value(),
+                        "tmp_add",
+                    )
+                    .as_any_value_enum(),
+            ),
+            Token::Plus => Some(
+                self.builder
+                    .build_int_add(l.into_int_value(), r.into_int_value(), "tmp_add")
+                    .as_any_value_enum(),
+            ),
+            Token::Minus if desired_cast == Numeric::Num => Some(
+                self.builder
+                    .build_float_sub(
+                        self.cast_numeric(l, desired_cast).into_float_value(),
+                        self.cast_numeric(r, desired_cast).into_float_value(),
+                        "tmp_sub",
+                    )
+                    .as_any_value_enum(),
+            ),
+            Token::Minus => Some(
+                self.builder
+                    .build_int_sub(l.into_int_value(), r.into_int_value(), "tmp_sub")
+                    .as_any_value_enum(),
+            ),
+
+            Token::Star if desired_cast == Numeric::Num => Some(
+                self.builder
+                    .build_float_mul(
+                        self.cast_numeric(l, desired_cast).into_float_value(),
+                        self.cast_numeric(r, desired_cast).into_float_value(),
+                        "tmp_mul",
+                    )
+                    .as_any_value_enum(),
+            ),
+            Token::Star => Some(
+                self.builder
+                    .build_int_mul(l.into_int_value(), r.into_int_value(), "tmp_mul")
+                    .as_any_value_enum(),
+            ),
+
+            Token::Slash if desired_cast == Numeric::Num => Some(
+                self.builder
+                    .build_float_div(
+                        self.cast_numeric(l, desired_cast).into_float_value(),
+                        self.cast_numeric(r, desired_cast).into_float_value(),
+                        "tmp_div",
+                    )
+                    .as_any_value_enum(),
+            ),
+            Token::Slash => Some(
+                self.builder
+                    .build_int_signed_div(l.into_int_value(), r.into_int_value(), "tmp_div")
+                    .as_any_value_enum(),
+            ),
+
+            Token::Modulo if desired_cast == Numeric::Num => Some(
+                self.builder
+                    .build_float_rem(
+                        self.cast_numeric(l, desired_cast).into_float_value(),
+                        self.cast_numeric(r, desired_cast).into_float_value(),
+                        "tmp_modulo",
+                    )
+                    .as_any_value_enum(),
+            ),
+            Token::Modulo => Some(
+                self.builder
+                    .build_int_signed_rem(l.into_int_value(), r.into_int_value(), "tmp_modulo")
+                    .as_any_value_enum(),
+            ),
+            _ => None,
+        }
+    }
+    fn codegen_binop(
+        &mut self,
+        token: Token,
+        left: &Ast,
+        right: &Ast,
+        ttype: Ttype,
+    ) -> Option<AnyValueEnum<'ctx>> {
+        match token {
+            Token::Plus
+            | Token::Minus
+            | Token::Star
+            | Token::Slash
+            | Token::Modulo
+            | Token::Gt
+            | Token::Gte
+            | Token::Lt
+            | Token::Lte => self.codegen_numeric_binop(token, left, right, ttype),
+            _ => None,
+        }
     }
 
     fn codegen(&mut self, expr: &Ast) -> Option<AnyValueEnum<'ctx>> {
@@ -80,22 +246,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Ast::Id(_id, _ttype) => None,
             Ast::Binop(token, left, right, ttype) => {
-                let l = self.codegen(&left).unwrap();
-                let r = self.codegen(&right).unwrap();
-                let v = match (token, l, r) {
-                    (Token::Plus, AnyValueEnum::IntValue(l), AnyValueEnum::IntValue(r)) => Some(
-                        AnyValueEnum::IntValue(self.builder.build_int_add(l, r, "tmp_add")),
-                    ),
-                    (Token::Minus, _, _) => None,
-                    (Token::Star, _, _) => None,
-                    (Token::Slash, _, _) => None,
-                    (Token::Modulo, _, _) => None,
-                    _ => None,
-                };
-                println!("binop {:?}", v.unwrap());
-                v
-
-                //
+                // println!("codegen binop {:?}", expr);
+                self.codegen_binop(token.clone(), left, right, ttype.clone())
             }
             Ast::Unop(_token, _operand, _ttype) => None,
             Ast::Tuple(_exprs, _ttype) => None,

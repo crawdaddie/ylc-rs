@@ -423,7 +423,7 @@ impl Parser {
             Token::Equality | Token::NotEqual => Precedence::Equality,
             Token::Lt | Token::Lte | Token::Gt | Token::Gte => Precedence::Comparison,
             Token::Plus | Token::Minus => Precedence::Term,
-            Token::Slash | Token::Star => Precedence::Factor,
+            Token::Slash | Token::Star | Token::Modulo => Precedence::Factor,
             Token::LeftSq => Precedence::Index,
             Token::Lp | Token::Rp | Token::Dot => Precedence::Call,
             Token::Bang => Precedence::Unary,
@@ -435,6 +435,7 @@ impl Parser {
 
     fn parse_infix_expr(&mut self, left: Option<Ast>) -> Option<Ast> {
         let tok = self.current.clone();
+        // println!("parse infix {:?} {:?}", left, tok);
         let precedence = self.token_to_precedence(&tok);
 
         self.advance();
@@ -615,6 +616,7 @@ impl Parser {
                 | Token::Minus
                 | Token::Slash
                 | Token::Star
+                | Token::Modulo
                 | Token::Equality
                 | Token::NotEqual
                 | Token::Lt
@@ -630,14 +632,8 @@ impl Parser {
                     left = self.parse_assignment_expression(left);
                 }
                 Token::Lp => {
-                    // println!("parse call! {:?}", left);
                     left = self.parse_call(left);
-                    // return left;
                 }
-                // Token::Lparen => {
-                //     self.bump();
-                //     left = self.parse_call_expr(left.unwrap());
-                // }
                 _ => return left,
             }
         }
