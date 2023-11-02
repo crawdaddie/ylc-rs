@@ -6,14 +6,9 @@ use crate::symbols::{Env, Numeric, Symbol, Ttype};
 mod numeric_binop;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::values::{
-    AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
-    FunctionValue, GenericValue, IntMathValue, IntValue, PointerValue,
-};
-use inkwell::OptimizationLevel;
+use inkwell::values::{AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 
 pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
@@ -23,8 +18,6 @@ pub struct Compiler<'a, 'ctx> {
     env: Env<Symbol>,
 }
 
-// AnyValueEnum:    ArrayValue, IntValue, FloatValue, PhiValue, FunctionValue, PointerValue, StructValue, VectorValue, InstructionValue, MetadataValue}
-// BasicValueEnum:  ArrayValue, IntValue, FloatValue, PointerValue, StructValue, VectorValue}
 pub fn to_basic_value(x: AnyValueEnum) -> BasicValueEnum {
     match x {
         AnyValueEnum::ArrayValue(v) => v.as_basic_value_enum(),
@@ -87,8 +80,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.add_return_value(v.unwrap());
 
-        // let i = self.context.i32_type().const_int(2, false);
-        // self.builder.build_return(Some(&i));
         Ok(main_fn)
     }
 
@@ -125,8 +116,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             | Token::Lt
             | Token::Lte => {
                 if let Ttype::Numeric(desired_cast) = ttype {
-                    let l = to_basic_value(self.codegen(&left).unwrap());
-                    let r = to_basic_value(self.codegen(&right).unwrap());
+                    let mut l = to_basic_value(self.codegen(&left).unwrap());
+                    let mut r = to_basic_value(self.codegen(&right).unwrap());
+                    if ttype.is_num() {
+                        l = self.cast_numeric(l, desired_cast);
+                        r = self.cast_numeric(r, desired_cast);
+                    }
                     self.codegen_numeric_binop(token, l, r, desired_cast)
                 } else {
                     panic!("attempt to use a numeric binop with non-numeric types")

@@ -22,11 +22,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match token {
             Token::Plus if is_num(desired_cast) => Some(
                 self.builder
-                    .build_float_add(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        "tmp_add",
-                    )
+                    .build_float_add(l.into_float_value(), r.into_float_value(), "tmp_add")
                     .as_any_value_enum(),
             ),
             Token::Plus => Some(
@@ -36,11 +32,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             ),
             Token::Minus if is_num(desired_cast) => Some(
                 self.builder
-                    .build_float_sub(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_sub",
-                    )
+                    .build_float_sub(l.into_float_value(), r.into_float_value(), "tmp_sub")
                     .as_any_value_enum(),
             ),
             Token::Minus => Some(
@@ -51,11 +43,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Token::Star if is_num(desired_cast) => Some(
                 self.builder
-                    .build_float_mul(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_mul",
-                    )
+                    .build_float_mul(l.into_float_value(), r.into_float_value(), "tmp_mul")
                     .as_any_value_enum(),
             ),
             Token::Star => Some(
@@ -66,11 +54,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Token::Slash if is_num(desired_cast) => Some(
                 self.builder
-                    .build_float_div(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_div",
-                    )
+                    .build_float_div(l.into_float_value(), r.into_float_value(), "tmp_div")
                     .as_any_value_enum(),
             ),
             Token::Slash => Some(
@@ -81,11 +65,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Token::Modulo if is_num(desired_cast) => Some(
                 self.builder
-                    .build_float_rem(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_modulo",
-                    )
+                    .build_float_rem(l.into_float_value(), r.into_float_value(), "tmp_modulo")
                     .as_any_value_enum(),
             ),
             Token::Modulo => Some(
