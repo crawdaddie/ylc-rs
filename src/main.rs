@@ -82,14 +82,14 @@ fn main() -> Result<(), io::Error> {
     // Create FPM
     let fpm = PassManager::create(&module);
 
-    fpm.add_instruction_combining_pass();
-    fpm.add_reassociate_pass();
-    fpm.add_gvn_pass();
-    fpm.add_cfg_simplification_pass();
-    fpm.add_basic_alias_analysis_pass();
-    fpm.add_promote_memory_to_register_pass();
-    fpm.add_instruction_combining_pass();
-    fpm.add_reassociate_pass();
+    // fpm.add_instruction_combining_pass();
+    // fpm.add_reassociate_pass();
+    // fpm.add_gvn_pass();
+    // fpm.add_cfg_simplification_pass();
+    // fpm.add_basic_alias_analysis_pass();
+    // fpm.add_promote_memory_to_register_pass();
+    // fpm.add_instruction_combining_pass();
+    // fpm.add_reassociate_pass();
 
     fpm.initialize();
     // let mut ctx = CodegenCtx {
@@ -111,7 +111,20 @@ fn main() -> Result<(), io::Error> {
     println!("\x1b[1;0m");
 
     // ctx.env.push();
-    Compiler::compile(&context, &builder, &fpm, &module, &program);
+    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
+        module.print_to_stderr();
+        let ee = module
+            .create_jit_execution_engine(OptimizationLevel::None)
+            .unwrap();
+        let name = main_fn.get_name().to_str().unwrap().to_string();
+
+        let compiled_fn =
+            unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
+
+        unsafe {
+            println!("=> {}", compiled_fn.unwrap().call());
+        }
+    }
 
     // if codegen_program(program, &mut ctx).is_ok() {
     //     ctx.module.print_to_stderr();
@@ -122,11 +135,11 @@ fn main() -> Result<(), io::Error> {
     //     }
     // };
 
-    println!("top-level env: {:?}", ctx.env.current().unwrap());
+    // println!("top-level env: {:?}", ctx.env.current().unwrap());
 
-    let ts_ctx = Arc::new(Mutex::new(ctx)); // unfortunately need to wrap
-                                            // in Arc(Mutex(...)) because rust can't prove that the closure won't be passed to another
-                                            // thread
+    // let ts_ctx = Arc::new(Mutex::new(ctx)); // unfortunately need to wrap
+    // in Arc(Mutex(...)) because rust can't prove that the closure won't be passed to another
+    // thread
 
     // if args.interactive {
     //     let _ = repl::repl(|line| {
