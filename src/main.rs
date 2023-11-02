@@ -4,13 +4,15 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use clap::Parser;
-use codegen::codegen_program;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
+use inkwell::passes::PassManager;
 use inkwell::OptimizationLevel;
+use symbols::Symbol;
 
+use crate::codegen::Compiler;
 use crate::typecheck::infer_types;
 
 mod codegen;
@@ -45,7 +47,7 @@ pub struct CodegenCtx<'ctx> {
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     execution_engine: ExecutionEngine<'ctx>,
-    env: symbols::Env,
+    env: symbols::Env<Symbol>,
 }
 
 impl<'ctx> CodegenCtx<'ctx> {
@@ -72,17 +74,31 @@ fn main() -> Result<(), io::Error> {
 
     let context = Context::create();
     let module = context.create_module("ylc");
-    let execution_engine = module
-        .create_jit_execution_engine(OptimizationLevel::None)
-        .unwrap();
+    let builder = context.create_builder();
+    // let execution_engine = module
+    //     .create_jit_execution_engine(OptimizationLevel::None)
+    //     .unwrap();
 
-    let mut ctx = CodegenCtx {
-        context: &context,
-        module,
-        builder: context.create_builder(),
-        execution_engine,
-        env: symbols::Env::new(),
-    };
+    // Create FPM
+    let fpm = PassManager::create(&module);
+
+    fpm.add_instruction_combining_pass();
+    fpm.add_reassociate_pass();
+    fpm.add_gvn_pass();
+    fpm.add_cfg_simplification_pass();
+    fpm.add_basic_alias_analysis_pass();
+    fpm.add_promote_memory_to_register_pass();
+    fpm.add_instruction_combining_pass();
+    fpm.add_reassociate_pass();
+
+    fpm.initialize();
+    // let mut ctx = CodegenCtx {
+    //     context: &context,
+    //     module,
+    //     builder: context.create_builder(),
+    //     execution_engine,
+    //     env: symbols::Env::<Symbol>::new(),
+    // };
 
     let mut program = parser::parse(file_contents);
     infer_types(&mut program);
@@ -94,15 +110,17 @@ fn main() -> Result<(), io::Error> {
     }
     println!("\x1b[1;0m");
 
-    ctx.env.push();
-    if codegen_program(program, &mut ctx).is_ok() {
-        ctx.module.print_to_stderr();
-        if let Some(main_fn) = ctx.get_function::<MainFunc>("main") {
-            unsafe {
-                main_fn.call();
-            }
-        }
-    };
+    // ctx.env.push();
+    Compiler::compile(&context, &builder, &fpm, &module, &program);
+
+    // if codegen_program(program, &mut ctx).is_ok() {
+    //     ctx.module.print_to_stderr();
+    //     if let Some(main_fn) = ctx.get_function::<MainFunc>("main") {
+    //         unsafe {
+    //             main_fn.call();
+    //         }
+    //     }
+    // };
 
     println!("top-level env: {:?}", ctx.env.current().unwrap());
 
@@ -110,31 +128,31 @@ fn main() -> Result<(), io::Error> {
                                             // in Arc(Mutex(...)) because rust can't prove that the closure won't be passed to another
                                             // thread
 
-    if args.interactive {
-        let _ = repl::repl(|line| {
-            let mut program = parser::parse(line);
-
-            infer_types(&mut program);
-
-            println!("\x1b[1;35m");
-            for s in &program {
-                // print_ast(s.clone(), 0);
-                println!("{:?}", s);
-            }
-            println!("\x1b[1;0m");
-
-            let mut ctx = ts_ctx.lock().unwrap();
-            if codegen_program(program, &mut ctx).is_ok() {
-                ctx.module.print_to_stderr();
-
-                if let Some(main_fn) = ctx.get_function::<MainFunc>("main") {
-                    unsafe {
-                        main_fn.call();
-                    }
-                }
-            }
-        });
-    }
+    // if args.interactive {
+    //     let _ = repl::repl(|line| {
+    //         let mut program = parser::parse(line);
+    //
+    //         infer_types(&mut program);
+    //
+    //         println!("\x1b[1;35m");
+    //         for s in &program {
+    //             // print_ast(s.clone(), 0);
+    //             println!("{:?}", s);
+    //         }
+    //         println!("\x1b[1;0m");
+    //
+    //         let mut ctx = ts_ctx.lock().unwrap();
+    //         if codegen_program(program, &mut ctx).is_ok() {
+    //             ctx.module.print_to_stderr();
+    //
+    //             if let Some(main_fn) = ctx.get_function::<MainFunc>("main") {
+    //                 unsafe {
+    //                     main_fn.call();
+    //                 }
+    //             }
+    //         }
+    //     });
+    // }
 
     Ok(())
 }

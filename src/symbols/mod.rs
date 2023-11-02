@@ -87,45 +87,87 @@ impl fmt::Debug for Ttype {
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
-pub enum SymbolValue {
+pub enum TypecheckSymbol {
     TypeDecl,
     Function(Ttype),
-    // RecursiveRef(Ttype),
     Variable(Ttype),
 }
 
-type StackFrame = HashMap<String, SymbolValue>;
-
-#[derive(Debug)]
-pub struct Env {
-    stack: Vec<StackFrame>,
+#[derive(Hash, Eq, PartialEq, Debug)]
+pub enum Symbol {
+    TypeDecl,
+    Function(Ttype),
+    Variable(Ttype),
 }
 
-impl Env {
+type StackFrame<T> = HashMap<String, T>;
+
+#[derive(Debug)]
+pub struct Env<T> {
+    stack: Vec<StackFrame<T>>,
+}
+impl Env<TypecheckSymbol> {
     pub fn new() -> Self {
-        let stack = vec![];
+        let stack: Vec<StackFrame<TypecheckSymbol>> = vec![];
         Self { stack }
     }
-    pub fn push(&mut self) -> Option<&mut StackFrame> {
+
+    pub fn push(&mut self) -> Option<&mut StackFrame<TypecheckSymbol>> {
         let frame = HashMap::new();
         self.stack.push(frame);
         self.stack.last_mut()
     }
 
-    pub fn pop(&mut self) -> Option<&mut StackFrame> {
+    pub fn pop(&mut self) -> Option<&mut StackFrame<TypecheckSymbol>> {
         self.stack.pop();
         self.stack.last_mut()
     }
-    pub fn current(&mut self) -> Option<&mut StackFrame> {
+    pub fn current(&mut self) -> Option<&mut StackFrame<TypecheckSymbol>> {
         self.stack.last_mut()
     }
 
-    pub fn bind_symbol(&mut self, name: String, value: SymbolValue) {
+    pub fn bind_symbol(&mut self, name: String, value: TypecheckSymbol) {
         if let Some(frame) = self.current() {
             frame.insert(name, value);
         }
     }
-    pub fn lookup(&self, name: String) -> Option<&SymbolValue> {
+    pub fn lookup(&self, name: String) -> Option<&TypecheckSymbol> {
+        for frame in self.stack.iter().rev() {
+            let x = frame.get(&name);
+            if x.is_some() {
+                return x;
+            }
+        }
+        None
+    }
+}
+
+impl Env<Symbol> {
+    pub fn new() -> Self {
+        let stack: Vec<StackFrame<Symbol>> = vec![];
+        Self { stack }
+    }
+
+    pub fn push(&mut self) -> Option<&mut StackFrame<Symbol>> {
+        let frame = HashMap::new();
+        self.stack.push(frame);
+        self.stack.last_mut()
+    }
+
+    pub fn pop(&mut self) -> Option<&mut StackFrame<Symbol>> {
+        self.stack.pop();
+        self.stack.last_mut()
+    }
+    pub fn current(&mut self) -> Option<&mut StackFrame<Symbol>> {
+        self.stack.last_mut()
+    }
+
+    pub fn bind_symbol(&mut self, name: String, value: Symbol) {
+        if let Some(frame) = self.current() {
+            frame.insert(name, value);
+        }
+    }
+    pub fn lookup(&self, name: String) -> Option<&Symbol> {
         for frame in self.stack.iter().rev() {
             let x = frame.get(&name);
             if x.is_some() {

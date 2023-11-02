@@ -113,11 +113,7 @@ pub fn infer_types(expr: &mut Program) {
 }
 #[cfg(test)]
 mod tests {
-    use crate::{
-        int_expr,
-        lexer::Lexer,
-        parser::{Parser},
-    };
+    use crate::{int_expr, lexer::Lexer, parser::Parser};
 
     use super::*;
 
@@ -129,11 +125,11 @@ mod tests {
         }
         f(1, 2)
         "#;
-        // unsafe { TVAR_COUNT = 0 }
 
         let mut parser = Parser::new(Lexer::new(input.into()));
         let mut program = parser.parse_program();
         infer_types(&mut program);
+
         if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
             let mut fn_types = vec![];
             if let Ast::Id(_, fn_type) = *fn_id {
@@ -146,6 +142,7 @@ mod tests {
             if fn_types.is_empty() {
                 panic!()
             }
+            assert!(fn_types.len() == 5);
             assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
             assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
         }
