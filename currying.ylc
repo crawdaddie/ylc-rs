@@ -1,0 +1,5 @@
+let x = fn (a, b, c, d) {
+  a + b + c + d
+}
+
+x(1, 2)

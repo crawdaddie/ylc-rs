@@ -204,11 +204,14 @@ impl ConstraintGenerator {
             }
         };
 
-        self.push_constraint(ttype.clone(), fn_types.last().unwrap().clone());
-
         if params.len() < fn_types.len() - 1 {
-            // TODO: typecheck curried fn
+            // typecheck curried fn
+            let curried_fn_components = &fn_types[params.len()..];
+            self.push_constraint(ttype.clone(), Ttype::Fn(curried_fn_components.into()));
+            return ();
         }
+
+        self.push_constraint(ttype.clone(), fn_types.last().unwrap().clone());
 
         if let Ast::Id(callee_name, _) = callee {
             let args: Vec<Ttype> = params.iter().map(|p| p.get_ttype().unwrap()).collect();
@@ -306,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_constraints() {
-        let mut program = vec![if_expr!(
+        let program = vec![if_expr!(
             bool_expr!(true),
             vec![tuple_expr!(
                 vec![Ast::Integer(1), Ast::Integer(2)],
@@ -319,7 +322,7 @@ mod tests {
             t!("if_expr_type")
         )];
         let mut constraint_generator = ConstraintGenerator::new();
-        constraint_generator.generate_constraints(&mut program[0]);
+        constraint_generator.generate_constraints(&program[0]);
 
         let ex: Vec<Constraint> = vec![
             Constraint {
@@ -485,8 +488,8 @@ mod tests {
 
         for (program, expect) in tests {
             let mut cg = ConstraintGenerator::new();
-            for mut stmt in program {
-                cg.generate_constraints(&mut stmt);
+            for stmt in program {
+                cg.generate_constraints(&stmt);
             }
             println!("constraints {:?} {:?}", cg.constraints, cg.env);
             assert_eq_unordered::<Constraint>(expect, cg.constraints)
@@ -502,7 +505,7 @@ mod tests {
                 Ttype::tvar("fn_ret"),
             ])),
         );
-        cg.generate_constraints(&mut call_expr!(
+        cg.generate_constraints(&call_expr!(
             id_expr!("f", Ttype::tvar("fn_ref")),
             vec![int_expr!(1)],
             Ttype::tvar("call_expr")
@@ -542,7 +545,7 @@ mod tests {
                 Ttype::tvar("fn_ret"),
             ])),
         );
-        cg.generate_constraints(&mut call_expr!(
+        cg.generate_constraints(&call_expr!(
             id_expr!("f", Ttype::tvar("fn_ref")),
             vec![
                 id_expr!("a", Ttype::tvar("a_ref")),

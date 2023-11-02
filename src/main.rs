@@ -7,10 +7,9 @@ use clap::Parser;
 use codegen::codegen_program;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::execution_engine::ExecutionEngine;
+use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
 use inkwell::module::Module;
 use inkwell::OptimizationLevel;
-
 
 use crate::typecheck::infer_types;
 
@@ -47,6 +46,15 @@ pub struct CodegenCtx<'ctx> {
     builder: Builder<'ctx>,
     execution_engine: ExecutionEngine<'ctx>,
     env: symbols::Env,
+}
+
+impl<'ctx> CodegenCtx<'ctx> {
+    pub fn get_function<T>(&self, fn_name: &str) -> Option<JitFunction<'ctx, T>>
+    where
+        T: UnsafeFunctionPointer,
+    {
+        unsafe { self.execution_engine.get_function::<T>(fn_name).ok() }
+    }
 }
 
 /// Calling this is innately `unsafe` because there's no guarantee it doesn't

@@ -59,6 +59,33 @@ fn tvar() -> Ttype {
     };
     tv
 }
+// Ast node match template
+// match ast {
+//     Ast::Let(
+//         id,
+//         t,     // optional explicit type parameter
+//         value, // optional immediate assignment expression
+//     ) => {}
+//     Ast::FnDeclaration(id, fn_expr) => {}
+//     Ast::TypeDeclaration(id, type_expr) => {}
+//
+//     Ast::Id(id, ttype) => {}
+//     Ast::Binop(token, left, right, ttype) => {}
+//     Ast::Unop(token, operand, ttype) => {}
+//     Ast::Tuple(exprs, ttype) => {}
+//     Ast::Index(obj, idx, ttype) => {}
+//     Ast::Assignment(assignee, val, ttype) => {}
+//     Ast::Fn(params, ret_type, body, ttype) => {}
+//     Ast::Call(callable, args, ttype) => {}
+//     Ast::Body(stmts, ttype) => {}
+//     Ast::If(cond, then, elze, ttype) => {}
+//
+//     Ast::Int8(i) => {}
+//     Ast::Integer(i) => {}
+//     Ast::Number(f) => {}
+//     Ast::Bool(b) => {}
+//     Ast::String(s) => {}
+// }
 
 impl Ast {
     pub fn get_ttype(&self) -> Option<Ttype> {

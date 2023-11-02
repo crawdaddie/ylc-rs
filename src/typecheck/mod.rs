@@ -99,15 +99,55 @@ pub fn infer_types(expr: &mut Program) {
 
     cg.env.pop();
 
-    println!("\x1b[1;31m");
-    for c in &cg.constraints {
-        println!("{:?}", c);
-    }
-    println!("\x1b[1;0m");
+    // for c in &cg.constraints {
+    //     println!("{:?}", c);
+    // }
     let subs = unify_constraints(cg.constraints, &mut Substitutions::new());
 
+    println!("\x1b[1;31m");
     println!("unified substitutions: {:?}", subs);
+    println!("\x1b[1;0m");
     for e in expr {
         update_types(e, &subs);
+    }
+}
+#[cfg(test)]
+mod tests {
+    use crate::{
+        int_expr,
+        lexer::Lexer,
+        parser::{Parser, TVAR_COUNT},
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_curried_function() {
+        let input = r#"
+        let f = fn (a, b, c, d) {
+            a + b + c + d
+        }
+        f(1, 2)
+        "#;
+        // unsafe { TVAR_COUNT = 0 }
+
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let mut program = parser.parse_program();
+        infer_types(&mut program);
+        if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
+            let mut fn_types = vec![];
+            if let Ast::Id(_, fn_type) = *fn_id {
+                if let Ttype::Fn(fn_types_vec) = fn_type {
+                    fn_types = fn_types_vec;
+                } else {
+                    panic!()
+                }
+            };
+            if fn_types.is_empty() {
+                panic!()
+            }
+            assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
+            assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
+        }
     }
 }
