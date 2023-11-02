@@ -116,7 +116,7 @@ mod tests {
     use crate::{
         int_expr,
         lexer::Lexer,
-        parser::{Parser, TVAR_COUNT},
+        parser::{Parser},
     };
 
     use super::*;

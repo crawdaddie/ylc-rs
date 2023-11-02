@@ -208,7 +208,7 @@ impl ConstraintGenerator {
             // typecheck curried fn
             let curried_fn_components = &fn_types[params.len()..];
             self.push_constraint(ttype.clone(), Ttype::Fn(curried_fn_components.into()));
-            return ();
+            return ;
         }
 
         self.push_constraint(ttype.clone(), fn_types.last().unwrap().clone());

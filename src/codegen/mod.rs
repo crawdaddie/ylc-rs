@@ -1,8 +1,8 @@
 use crate::parser::{Ast, Program};
 use crate::symbols::SymbolValue;
 use crate::CodegenCtx;
-use inkwell::execution_engine::{JitFunction, UnsafeFunctionPointer};
-use inkwell::values::{AnyValue, BasicValue, FunctionValue};
+
+use inkwell::values::{AnyValue, FunctionValue};
 use std::error::Error;
 //
 // fn codegen_literal<'ctx>(literal: Literal, ctx: &CodegenCtx<'ctx>) -> AnyValueEnum<'ctx> {
@@ -80,7 +80,7 @@ fn codegen<'ctx>(ast: Ast, ctx: &mut CodegenCtx<'ctx>) -> Option<Box<dyn AnyValu
     match ast {
         Ast::Let(
             id,
-            t,           // optional explicit type parameter
+            _t,           // optional explicit type parameter
             Some(value), // optional immediate assignment expression
         ) => {
             ctx.env
@@ -95,28 +95,28 @@ fn codegen<'ctx>(ast: Ast, ctx: &mut CodegenCtx<'ctx>) -> Option<Box<dyn AnyValu
             v
         }
 
-        Ast::TypeDeclaration(id, type_expr) => None,
+        Ast::TypeDeclaration(_id, _type_expr) => None,
 
-        Ast::Id(id, ttype) => None,
-        Ast::Binop(token, left, right, ttype) => {
+        Ast::Id(_id, _ttype) => None,
+        Ast::Binop(_token, _left, _right, _ttype) => {
             // let l = codegen(*left, ctx);
             // let r = codegen(*right, ctx);
             None
         }
-        Ast::Unop(token, operand, ttype) => None,
-        Ast::Tuple(exprs, ttype) => None,
-        Ast::Index(obj, idx, ttype) => None,
-        Ast::Assignment(assignee, val, ttype) => None,
-        Ast::Fn(params, ret_type, body, ttype) => None,
-        Ast::Call(callable, args, ttype) => None,
-        Ast::Body(stmts, ttype) => None,
-        Ast::If(cond, then, elze, ttype) => None,
+        Ast::Unop(_token, _operand, _ttype) => None,
+        Ast::Tuple(_exprs, _ttype) => None,
+        Ast::Index(_obj, _idx, _ttype) => None,
+        Ast::Assignment(_assignee, _val, _ttype) => None,
+        Ast::Fn(_params, _ret_type, _body, _ttype) => None,
+        Ast::Call(_callable, _args, _ttype) => None,
+        Ast::Body(_stmts, _ttype) => None,
+        Ast::If(_cond, _then, _elze, _ttype) => None,
 
-        Ast::Int8(i) => None,
-        Ast::Integer(i) => None,
-        Ast::Number(f) => None,
-        Ast::Bool(b) => None,
-        Ast::String(s) => None,
+        Ast::Int8(_i) => None,
+        Ast::Integer(_i) => None,
+        Ast::Number(_f) => None,
+        Ast::Bool(_b) => None,
+        Ast::String(_s) => None,
         _ => None,
     }
 }
