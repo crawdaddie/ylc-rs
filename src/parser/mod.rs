@@ -730,6 +730,18 @@ mod tests {
                     binop_expr!(Token::Plus, num_expr!(7.0), int_expr!(200))
                 ),
             ),
+            (
+                r#"13 * (2 + 2) + 100.0"#,
+                binop_expr!(
+                    Token::Plus,
+                    binop_expr!(
+                        Token::Star,
+                        int_expr!(13),
+                        binop_expr!(Token::Plus, int_expr!(2), int_expr!(2))
+                    ),
+                    num_expr!(100.0)
+                ),
+            ),
         ];
 
         for (input, expect) in tests {

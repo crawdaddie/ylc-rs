@@ -3,6 +3,7 @@ use std::error::Error;
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{Env, Numeric, Symbol, Ttype};
+mod numeric_binop;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
@@ -24,7 +25,7 @@ pub struct Compiler<'a, 'ctx> {
 
 // AnyValueEnum:    ArrayValue, IntValue, FloatValue, PhiValue, FunctionValue, PointerValue, StructValue, VectorValue, InstructionValue, MetadataValue}
 // BasicValueEnum:  ArrayValue, IntValue, FloatValue, PointerValue, StructValue, VectorValue}
-fn to_basic_value(x: AnyValueEnum) -> BasicValueEnum {
+pub fn to_basic_value(x: AnyValueEnum) -> BasicValueEnum {
     match x {
         AnyValueEnum::ArrayValue(v) => v.as_basic_value_enum(),
         AnyValueEnum::IntValue(v) => v.as_basic_value_enum(),
@@ -106,100 +107,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             _ => panic!(),
         }
     }
-
-    fn codegen_numeric_binop(
-        &mut self,
-        token: Token,
-        left: &Ast,
-        right: &Ast,
-        ttype: Ttype,
-    ) -> Option<AnyValueEnum<'ctx>> {
-        let desired_cast = match ttype {
-            Ttype::Numeric(num) => num,
-            _ => panic!("attempt to use a numeric binop with non-numeric types"),
-        };
-        let l = to_basic_value(self.codegen(&left).unwrap());
-        let r = to_basic_value(self.codegen(&right).unwrap());
-
-        println!("binop {:?} {:?} {:?} [{:?}]", l, token, r, ttype);
-
-        match token {
-            Token::Plus if desired_cast == Numeric::Num => Some(
-                self.builder
-                    .build_float_add(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        "tmp_add",
-                    )
-                    .as_any_value_enum(),
-            ),
-            Token::Plus => Some(
-                self.builder
-                    .build_int_add(l.into_int_value(), r.into_int_value(), "tmp_add")
-                    .as_any_value_enum(),
-            ),
-            Token::Minus if desired_cast == Numeric::Num => Some(
-                self.builder
-                    .build_float_sub(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_sub",
-                    )
-                    .as_any_value_enum(),
-            ),
-            Token::Minus => Some(
-                self.builder
-                    .build_int_sub(l.into_int_value(), r.into_int_value(), "tmp_sub")
-                    .as_any_value_enum(),
-            ),
-
-            Token::Star if desired_cast == Numeric::Num => Some(
-                self.builder
-                    .build_float_mul(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_mul",
-                    )
-                    .as_any_value_enum(),
-            ),
-            Token::Star => Some(
-                self.builder
-                    .build_int_mul(l.into_int_value(), r.into_int_value(), "tmp_mul")
-                    .as_any_value_enum(),
-            ),
-
-            Token::Slash if desired_cast == Numeric::Num => Some(
-                self.builder
-                    .build_float_div(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_div",
-                    )
-                    .as_any_value_enum(),
-            ),
-            Token::Slash => Some(
-                self.builder
-                    .build_int_signed_div(l.into_int_value(), r.into_int_value(), "tmp_div")
-                    .as_any_value_enum(),
-            ),
-
-            Token::Modulo if desired_cast == Numeric::Num => Some(
-                self.builder
-                    .build_float_rem(
-                        self.cast_numeric(l, desired_cast).into_float_value(),
-                        self.cast_numeric(r, desired_cast).into_float_value(),
-                        "tmp_modulo",
-                    )
-                    .as_any_value_enum(),
-            ),
-            Token::Modulo => Some(
-                self.builder
-                    .build_int_signed_rem(l.into_int_value(), r.into_int_value(), "tmp_modulo")
-                    .as_any_value_enum(),
-            ),
-            _ => None,
-        }
-    }
     fn codegen_binop(
         &mut self,
         token: Token,
@@ -216,7 +123,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             | Token::Gt
             | Token::Gte
             | Token::Lt
-            | Token::Lte => self.codegen_numeric_binop(token, left, right, ttype),
+            | Token::Lte => {
+                if let Ttype::Numeric(desired_cast) = ttype {
+                    let l = to_basic_value(self.codegen(&left).unwrap());
+                    let r = to_basic_value(self.codegen(&right).unwrap());
+                    self.codegen_numeric_binop(token, l, r, desired_cast)
+                } else {
+                    panic!("attempt to use a numeric binop with non-numeric types")
+                }
+            }
             _ => None,
         }
     }
