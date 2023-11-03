@@ -3,7 +3,7 @@ use crate::symbols::Ttype;
 use std::collections::HashMap;
 
 pub type Substitutions = HashMap<String, Ttype>;
-fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
+pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
     match &t {
         Ttype::Var(t_name) => {
             if let Some(t_lookup) = subs.get(&t_name.clone()) {
@@ -33,6 +33,13 @@ fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
                 .collect();
             Ttype::Application(fn_name.clone(), new_args)
         }
+
+        Ttype::Fn(fn_components) => Ttype::Fn(
+            fn_components
+                .iter()
+                .map(|v| lookup_contained_types(v.clone(), subs))
+                .collect(),
+        ),
 
         Ttype::Tuple(vals) => {
             let new_vals = vals
@@ -66,12 +73,14 @@ fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
 /// whether the same variable occurs on both sides and, if it does, decline to unify.
 ///
 pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
-    println!("unify {:?}::{:?}\n{:?}", lhs, rhs, subs);
+    // println!("unify {:?}::{:?}\n{:?}", lhs, rhs, subs);
     match (lhs, rhs) {
         (Ttype::Var(v1), Ttype::Var(v2)) if v1 == v2 => {}
-        (Ttype::Var(_), Ttype::Var(v2)) => {
+        (Ttype::Var(v1), Ttype::Var(v2)) => {
             if let Some(v2_follow) = subs.clone().get(v2) {
                 unify(lhs, v2_follow, subs);
+            } else {
+                subs.insert(v1.into(), rhs.clone());
             }
         }
         // (Ttype::Var(v), Ttype::MaxNumeric(w, x)) => {
@@ -87,10 +96,12 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
             subs.insert(v.clone(), lookup);
         }
         (t, Ttype::Var(v)) => {
-            if occurs(v, t, subs) {
+            let lookup = lookup_contained_types(t.clone(), subs);
+            if occurs(v, &lookup, subs) {
                 panic!("Occurs check failed");
             }
-            subs.insert(v.clone(), t.clone());
+
+            subs.insert(v.clone(), lookup);
         }
         (Ttype::Application(c1, args1), Ttype::Application(c2, args2)) if c1 == c2 => {
             for (arg1, arg2) in args1.iter().zip(args2) {
@@ -104,7 +115,7 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
         }
         (Ttype::Numeric(n1), Ttype::Numeric(n2)) => {}
         _ => panic!("Cannot unify types"),
-    }
+    };
 }
 
 fn occurs(l: &str, r: &Ttype, subs: &HashMap<String, Ttype>) -> bool {

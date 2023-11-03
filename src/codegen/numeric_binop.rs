@@ -3,7 +3,6 @@ use inkwell::IntPredicate;
 
 use super::Compiler;
 
-use crate::codegen::to_basic_value;
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{Env, Numeric, Symbol, Ttype};
@@ -92,27 +91,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .as_any_value_enum(),
             ),
 
-            // Token::Lt => Some(
-            //     self.builder
-            //         .build_int_compare(
-            //             IntPredicate::SLT,
-            //             l.into_int_value(),
-            //             r.into_int_value(),
-            //             "tmp_modulo",
-            //         )
-            //         .as_any_value_enum(),
-            // ),
-            //
-            // Token::Lt => Some(
-            //     self.builder
-            //         .build_int_compare(
-            //             IntPredicate::SLT,
-            //             l.into_int_value(),
-            //             r.into_int_value(),
-            //             "tmp_modulo",
-            //         )
-            //         .as_any_value_enum(),
-            // ),
             _ => None,
         }
     }

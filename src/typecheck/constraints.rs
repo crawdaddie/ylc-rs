@@ -168,7 +168,7 @@ impl ConstraintGenerator {
         self.body(then, Some(ttype.clone()));
     }
 
-    fn call(&mut self, callee: &Ast, params: &Vec<Ast>, ttype: Ttype) {
+    fn call(&mut self, callee: &Ast, call_params: &Vec<Ast>, ttype: Ttype) {
         self.generate_constraints(callee);
         let env = &self.env;
 
@@ -185,10 +185,17 @@ impl ConstraintGenerator {
                 return;
             }
         };
+        for (call_param, fn_param) in call_params
+            .iter()
+            .map(|c| c.get_ttype().unwrap())
+            .zip(&fn_types)
+        {
+            self.push_constraint(fn_param.clone(), call_param);
+        }
 
-        if params.len() < fn_types.len() - 1 {
+        if call_params.len() < fn_types.len() - 1 {
             // typecheck curried fn
-            let curried_fn_components = &fn_types[params.len()..];
+            let curried_fn_components = &fn_types[call_params.len()..];
             self.push_constraint(ttype.clone(), Ttype::Fn(curried_fn_components.into()));
             return;
         }
@@ -196,16 +203,16 @@ impl ConstraintGenerator {
         self.push_constraint(ttype.clone(), fn_types.last().unwrap().clone());
 
         if let Ast::Id(callee_name, _) = callee {
-            let args: Vec<Ttype> = params.iter().map(|p| p.get_ttype().unwrap()).collect();
+            let args: Vec<Ttype> = call_params.iter().map(|p| p.get_ttype().unwrap()).collect();
 
             self.push_constraint(ttype, Ttype::Application(callee_name.clone(), args.clone()));
-            println!(
-                "application {:?} {:?} {:?}",
-                callee_name, args, self.constraints
-            );
+            // println!(
+            //     "application {:?} {:?} {:?}",
+            //     callee_name, args, self.constraints
+            // );
         };
 
-        for (idx, param) in params.iter().enumerate() {
+        for (idx, param) in call_params.iter().enumerate() {
             self.generate_constraints(param);
             if let Some(param_type) = param.get_ttype() {
                 self.push_constraint(param_type.clone(), fn_types[idx].clone());

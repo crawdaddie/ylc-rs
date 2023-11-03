@@ -3,7 +3,6 @@ use inkwell::{FloatPredicate, IntPredicate};
 
 use super::Compiler;
 
-use crate::codegen::to_basic_value;
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{Env, Numeric, Symbol, Ttype};

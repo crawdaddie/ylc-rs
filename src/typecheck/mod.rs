@@ -1,7 +1,7 @@
 use crate::{
     parser::{Ast, Program},
     symbols::Ttype,
-    typecheck::unify::Substitutions,
+    typecheck::unify::{lookup_contained_types, Substitutions},
 };
 
 mod constraints;
@@ -13,7 +13,7 @@ use unify::unify_constraints;
 fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
     if let Ttype::Var(type_name) = t {
         if let Some(subs_type) = subs.get(type_name) {
-            *t = subs_type.clone();
+            *t = lookup_contained_types(subs_type.clone(), subs);
         }
     }
 }
@@ -103,10 +103,13 @@ pub fn infer_types(expr: &mut Program) {
     //     println!("{:?}", c);
     // }
     let subs = unify_constraints(cg.constraints, &mut Substitutions::new());
-
     println!("\x1b[1;31m");
-    println!("unified substitutions: {:?}", subs);
+    println!("substitutions\n----------");
+    for (k, v) in subs.iter() {
+        println!("{}:{:?}", k, v);
+    }
     println!("\x1b[1;0m");
+
     for e in expr {
         update_types(e, &subs);
     }

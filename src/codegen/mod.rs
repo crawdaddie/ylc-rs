@@ -1,11 +1,11 @@
-use std::error::Error;
-
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Numeric, Symbol, Ttype};
+use std::error::Error;
 mod function;
 mod numeric_binop;
 mod numeric_comparison;
+mod types;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -22,7 +22,7 @@ pub struct Compiler<'a, 'ctx> {
     env: Env<Symbol>,
 }
 
-pub fn to_basic_value(x: AnyValueEnum) -> BasicValueEnum {
+pub fn to_basic_value_enum(x: AnyValueEnum) -> BasicValueEnum {
     match x {
         AnyValueEnum::ArrayValue(v) => v.as_basic_value_enum(),
         AnyValueEnum::IntValue(v) => v.as_basic_value_enum(),
@@ -82,7 +82,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             v = self.codegen(&stmt);
         }
 
-        self.add_return_value(v.unwrap());
+        if v.is_some() {
+            self.add_return_value(v.unwrap());
+        } else {
+            self.builder.build_return(None);
+        }
 
         Ok(main_fn)
     }
@@ -116,8 +120,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match token {
             Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Modulo => {
                 if let Ttype::Numeric(desired_cast) = ttype {
-                    let mut l = to_basic_value(self.codegen(left).unwrap());
-                    let mut r = to_basic_value(self.codegen(right).unwrap());
+                    let mut l = to_basic_value_enum(self.codegen(left).unwrap());
+                    let mut r = to_basic_value_enum(self.codegen(right).unwrap());
                     if ttype.is_num() {
                         l = self.cast_numeric(l, desired_cast);
                         r = self.cast_numeric(r, desired_cast);
@@ -132,8 +136,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 let rtype = left.get_ttype().unwrap();
                 if let Some(max_type) = max_numeric_type(ltype, rtype) {
                     if let Ttype::Numeric(desired_cast) = max_type {
-                        let mut l = to_basic_value(self.codegen(left).unwrap());
-                        let mut r = to_basic_value(self.codegen(right).unwrap());
+                        let mut l = to_basic_value_enum(self.codegen(left).unwrap());
+                        let mut r = to_basic_value_enum(self.codegen(right).unwrap());
                         if max_type.is_num() {
                             l = self.cast_numeric(l, desired_cast);
                             r = self.cast_numeric(r, desired_cast);
@@ -163,12 +167,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
 
             Ast::FnDeclaration(id, fn_expr) => {
-                let func = self.codegen_fn(id, fn_expr);
-                self.env.bind_symbol(
-                    id.clone(),
-                    Symbol::Function((*fn_expr).get_ttype().unwrap()),
-                );
-                func
+                if let Ast::Fn(params, return_type, body, fn_type) = (**fn_expr).clone() {
+                    let func = self.codegen_fn(id, params, return_type, body, fn_type);
+                    self.env
+                        .bind_symbol(id.clone(), Symbol::Function(fn_expr.get_ttype().unwrap()));
+                    func.map(|f| f.as_any_value_enum())
+                } else {
+                    None
+                }
             }
 
             Ast::TypeDeclaration(_id, _type_expr) => None,
@@ -180,7 +186,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
             Ast::Unop(token, operand, ttype) => match token {
                 Token::Minus => {
-                    let op = to_basic_value(self.codegen(operand).unwrap());
+                    let op = to_basic_value_enum(self.codegen(operand).unwrap());
                     if ttype.is_num() {
                         let zero = self.context.f64_type().const_float(0.0);
                         Some(
@@ -198,7 +204,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     }
                 }
                 Token::Bang => {
-                    let op = to_basic_value(self.codegen(operand).unwrap());
+                    let op = to_basic_value_enum(self.codegen(operand).unwrap());
                     let one = self.context.bool_type().const_int(1, false);
                     Some(
                         self.builder
