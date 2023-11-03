@@ -194,3 +194,21 @@ impl Env<Symbol> {
         None
     }
 }
+
+pub fn max_numeric_type(l: Ttype, r: Ttype) -> Option<Ttype> {
+    match (&l, &r) {
+        (Ttype::Numeric(lnum), rnum) => match rnum {
+            Ttype::Numeric(rnum) => Some(Ttype::Numeric(if rnum >= lnum { *rnum } else { *lnum })),
+            Ttype::Var(_) => Some(Ttype::MaxNumeric(Box::new(l), Box::new(r))),
+            _ => None,
+        },
+
+        (lnum, Ttype::Numeric(rnum)) => match lnum {
+            Ttype::Numeric(lnum) => Some(Ttype::Numeric(if rnum >= lnum { *rnum } else { *lnum })),
+            Ttype::Var(_) => Some(Ttype::MaxNumeric(Box::new(l), Box::new(r))),
+            _ => None,
+        },
+        (Ttype::Var(_), Ttype::Var(_)) => Some(Ttype::MaxNumeric(Box::new(l), Box::new(r))),
+        _ => None,
+    }
+}

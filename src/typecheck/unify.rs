@@ -66,6 +66,7 @@ fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
 /// whether the same variable occurs on both sides and, if it does, decline to unify.
 ///
 pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
+    println!("unify {:?}::{:?}\n{:?}", lhs, rhs, subs);
     match (lhs, rhs) {
         (Ttype::Var(v1), Ttype::Var(v2)) if v1 == v2 => {}
         (Ttype::Var(_), Ttype::Var(v2)) => {
@@ -79,7 +80,6 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
         // }
         (Ttype::Var(v), t) => {
             let lookup = lookup_contained_types(t.clone(), subs);
-            println!("unify {:?}::{:?}\n{:?}", lhs, rhs, subs);
             if occurs(v, &lookup, subs) {
                 panic!("Occurs check failed");
             }
@@ -102,6 +102,7 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
                 unify(arg1, arg2, subs);
             }
         }
+        (Ttype::Numeric(n1), Ttype::Numeric(n2)) => {}
         _ => panic!("Cannot unify types"),
     }
 }
@@ -113,7 +114,7 @@ fn occurs(l: &str, r: &Ttype, subs: &HashMap<String, Ttype>) -> bool {
         Ttype::Application(_, args) | Ttype::Tuple(args) => {
             args.iter().any(|arg| occurs(l, arg, subs))
         }
-        Ttype::MaxNumeric(u, v) => occurs(l, &u, subs) || occurs(l, &v, subs),
+        Ttype::MaxNumeric(u, v) => occurs(l, u, subs) || occurs(l, v, subs),
         // ... other types
         _ => false,
     }

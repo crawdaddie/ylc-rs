@@ -128,6 +128,11 @@ fn main() -> Result<(), io::Error> {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
+
+            Ttype::Bool => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
             _ => {}
         }
         // unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };

@@ -2,13 +2,17 @@ use std::error::Error;
 
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
-use crate::symbols::{Env, Numeric, Symbol, Ttype};
+use crate::symbols::{max_numeric_type, Env, Numeric, Symbol, Ttype};
+mod function;
 mod numeric_binop;
+mod numeric_comparison;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::values::{AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{
+    AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
+};
 
 pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
@@ -88,14 +92,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         x: BasicValueEnum<'ctx>,
         desired_cast: Numeric,
     ) -> BasicValueEnum<'ctx> {
-        match (x, desired_cast) {
-            (BasicValueEnum::IntValue(i), Numeric::Int) => x,
-            (BasicValueEnum::IntValue(i), Numeric::Num) => self
+        match x {
+            BasicValueEnum::IntValue(i) if desired_cast == Numeric::Num => self
                 .builder
                 .build_signed_int_to_float(i, self.context.f64_type(), "int_to_float_cast")
                 .as_basic_value_enum(),
-            (BasicValueEnum::FloatValue(f), Numeric::Num) => x,
-            _ => panic!(),
+            BasicValueEnum::IntValue(i) => x,
+            BasicValueEnum::FloatValue(f) => x,
+            _ => panic!(
+                "Unknown numeric type {:?} to cast to {:?}",
+                x.get_type(),
+                desired_cast
+            ),
         }
     }
     fn codegen_binop(
@@ -106,18 +114,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         ttype: Ttype,
     ) -> Option<AnyValueEnum<'ctx>> {
         match token {
-            Token::Plus
-            | Token::Minus
-            | Token::Star
-            | Token::Slash
-            | Token::Modulo
-            | Token::Gt
-            | Token::Gte
-            | Token::Lt
-            | Token::Lte => {
+            Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Modulo => {
                 if let Ttype::Numeric(desired_cast) = ttype {
-                    let mut l = to_basic_value(self.codegen(&left).unwrap());
-                    let mut r = to_basic_value(self.codegen(&right).unwrap());
+                    let mut l = to_basic_value(self.codegen(left).unwrap());
+                    let mut r = to_basic_value(self.codegen(right).unwrap());
                     if ttype.is_num() {
                         l = self.cast_numeric(l, desired_cast);
                         r = self.cast_numeric(r, desired_cast);
@@ -125,6 +125,25 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     self.codegen_numeric_binop(token, l, r, desired_cast)
                 } else {
                     panic!("attempt to use a numeric binop with non-numeric types")
+                }
+            }
+            Token::Gt | Token::Gte | Token::Lt | Token::Lte => {
+                let ltype = left.get_ttype().unwrap();
+                let rtype = left.get_ttype().unwrap();
+                if let Some(max_type) = max_numeric_type(ltype, rtype) {
+                    if let Ttype::Numeric(desired_cast) = max_type {
+                        let mut l = to_basic_value(self.codegen(left).unwrap());
+                        let mut r = to_basic_value(self.codegen(right).unwrap());
+                        if max_type.is_num() {
+                            l = self.cast_numeric(l, desired_cast);
+                            r = self.cast_numeric(r, desired_cast);
+                        };
+                        self.codegen_numeric_comparison(token, l, r, desired_cast)
+                    } else {
+                        panic!("attempt to compare values with non-numeric types")
+                    }
+                } else {
+                    panic!()
                 }
             }
             _ => None,
@@ -144,12 +163,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
 
             Ast::FnDeclaration(id, fn_expr) => {
-                let v = self.codegen(fn_expr);
+                let func = self.codegen_fn(id, fn_expr);
                 self.env.bind_symbol(
                     id.clone(),
                     Symbol::Function((*fn_expr).get_ttype().unwrap()),
                 );
-                v
+                func
             }
 
             Ast::TypeDeclaration(_id, _type_expr) => None,
@@ -159,7 +178,36 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 // println!("codegen binop {:?}", expr);
                 self.codegen_binop(token.clone(), left, right, ttype.clone())
             }
-            Ast::Unop(_token, _operand, _ttype) => None,
+            Ast::Unop(token, operand, ttype) => match token {
+                Token::Minus => {
+                    let op = to_basic_value(self.codegen(operand).unwrap());
+                    if ttype.is_num() {
+                        let zero = self.context.f64_type().const_float(0.0);
+                        Some(
+                            self.builder
+                                .build_float_sub(zero, op.into_float_value(), "negative_num")
+                                .as_any_value_enum(),
+                        )
+                    } else {
+                        let zero = self.context.i64_type().const_int(0, false);
+                        Some(
+                            self.builder
+                                .build_int_sub(zero, op.into_int_value(), "negative_num")
+                                .as_any_value_enum(),
+                        )
+                    }
+                }
+                Token::Bang => {
+                    let op = to_basic_value(self.codegen(operand).unwrap());
+                    let one = self.context.bool_type().const_int(1, false);
+                    Some(
+                        self.builder
+                            .build_xor(op.into_int_value(), one, "negated_value")
+                            .as_any_value_enum(),
+                    )
+                }
+                _ => None,
+            },
             Ast::Tuple(_exprs, _ttype) => None,
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,

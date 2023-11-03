@@ -1,4 +1,5 @@
 use inkwell::values::{AnyValue, AnyValueEnum, BasicValueEnum};
+use inkwell::IntPredicate;
 
 use super::Compiler;
 
@@ -25,16 +26,19 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .build_float_add(l.into_float_value(), r.into_float_value(), "tmp_add")
                     .as_any_value_enum(),
             ),
+
             Token::Plus => Some(
                 self.builder
                     .build_int_add(l.into_int_value(), r.into_int_value(), "tmp_add")
                     .as_any_value_enum(),
             ),
+
             Token::Minus if is_num(desired_cast) => Some(
                 self.builder
                     .build_float_sub(l.into_float_value(), r.into_float_value(), "tmp_sub")
                     .as_any_value_enum(),
             ),
+
             Token::Minus => Some(
                 self.builder
                     .build_int_sub(l.into_int_value(), r.into_int_value(), "tmp_sub")
@@ -46,6 +50,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .build_float_mul(l.into_float_value(), r.into_float_value(), "tmp_mul")
                     .as_any_value_enum(),
             ),
+
             Token::Star => Some(
                 self.builder
                     .build_int_mul(l.into_int_value(), r.into_int_value(), "tmp_mul")
@@ -57,6 +62,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .build_float_div(l.into_float_value(), r.into_float_value(), "tmp_div")
                     .as_any_value_enum(),
             ),
+
             Token::Slash => Some(
                 self.builder
                     .build_int_signed_div(l.into_int_value(), r.into_int_value(), "tmp_div")
@@ -68,11 +74,45 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .build_float_rem(l.into_float_value(), r.into_float_value(), "tmp_modulo")
                     .as_any_value_enum(),
             ),
+
             Token::Modulo => Some(
                 self.builder
                     .build_int_signed_rem(l.into_int_value(), r.into_int_value(), "tmp_modulo")
                     .as_any_value_enum(),
             ),
+
+            Token::Lt => Some(
+                self.builder
+                    .build_int_compare(
+                        IntPredicate::SLT,
+                        l.into_int_value(),
+                        r.into_int_value(),
+                        "tmp_modulo",
+                    )
+                    .as_any_value_enum(),
+            ),
+
+            // Token::Lt => Some(
+            //     self.builder
+            //         .build_int_compare(
+            //             IntPredicate::SLT,
+            //             l.into_int_value(),
+            //             r.into_int_value(),
+            //             "tmp_modulo",
+            //         )
+            //         .as_any_value_enum(),
+            // ),
+            //
+            // Token::Lt => Some(
+            //     self.builder
+            //         .build_int_compare(
+            //             IntPredicate::SLT,
+            //             l.into_int_value(),
+            //             r.into_int_value(),
+            //             "tmp_modulo",
+            //         )
+            //         .as_any_value_enum(),
+            // ),
             _ => None,
         }
     }
