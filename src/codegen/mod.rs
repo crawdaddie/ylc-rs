@@ -11,7 +11,8 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::values::{
-    AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
+    AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
+    PointerValue,
 };
 
 pub struct Compiler<'a, 'ctx> {
@@ -20,6 +21,7 @@ pub struct Compiler<'a, 'ctx> {
     pub fpm: &'a PassManager<FunctionValue<'ctx>>,
     pub module: &'a Module<'ctx>,
     env: Env<Symbol>,
+    fn_stack: Vec<FunctionValue<'ctx>>,
 }
 
 pub fn to_basic_value_enum(x: AnyValueEnum) -> BasicValueEnum {
@@ -47,6 +49,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             fpm: pass_manager,
             module,
             env: Env::<Symbol>::new(),
+            fn_stack: vec![],
         };
         compiler.compile_program(program)
     }
@@ -67,15 +70,34 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
         }
     }
-    fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
-        self.env.push();
 
+    #[inline]
+    fn get_function(&self, name: &str) -> Option<FunctionValue<'ctx>> {
+        self.module.get_function(name)
+    }
+
+    fn current_fn(&self) -> Option<&FunctionValue<'ctx>> {
+        self.fn_stack.last()
+    }
+
+    fn push_fn_stack(&mut self, function: &FunctionValue<'ctx>) {
+        self.env.push();
+        self.fn_stack.push(*function);
+    }
+
+    fn pop_fn_stack(&mut self) {
+        self.env.pop();
+        self.fn_stack.pop();
+    }
+
+    fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
         let main_fn =
             self.module
                 .add_function("main", self.context.void_type().fn_type(&[], false), None);
 
         let basic_block = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(basic_block);
+        self.push_fn_stack(&main_fn);
 
         let mut v = None;
         for stmt in program {
@@ -87,6 +109,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         } else {
             self.builder.build_return(None);
         }
+        println!("top level env: {:?}", self.env);
+
+        self.pop_fn_stack();
 
         Ok(main_fn)
     }
@@ -168,9 +193,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Ast::FnDeclaration(id, fn_expr) => {
                 if let Ast::Fn(params, return_type, body, fn_type) = (**fn_expr).clone() {
-                    let func = self.codegen_fn(id, params, return_type, body, fn_type);
+                    let func = self.codegen_fn(id, &params, return_type, body, fn_type);
                     self.env
                         .bind_symbol(id.clone(), Symbol::Function(fn_expr.get_ttype().unwrap()));
+
                     func.map(|f| f.as_any_value_enum())
                 } else {
                     None
@@ -179,7 +205,20 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Ast::TypeDeclaration(_id, _type_expr) => None,
 
-            Ast::Id(_id, _ttype) => None,
+            Ast::Id(id, ttype) => {
+                if let Some(sym) = self.env.lookup(id.clone()) {
+                    match sym {
+                        Symbol::FnParam(idx, ttype) => {
+                            let current_fn = self.current_fn().unwrap();
+                            current_fn.get_nth_param(idx.clone()).map(|e| e.into())
+                        }
+                        Symbol::Function(fn_type) => self.get_function(&id).map(|f| f.into()),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
             Ast::Binop(token, left, right, ttype) => {
                 // println!("codegen binop {:?}", expr);
                 self.codegen_binop(token.clone(), left, right, ttype.clone())
@@ -218,7 +257,30 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _ret_type, _body, _ttype) => None,
-            Ast::Call(_callable, _args, _ttype) => None,
+            Ast::Call(callable, args, _ttype) => {
+                if let Some(callable) = self.codegen(callable) {
+                    // callable is an AnyValue enum
+                    let callable_fn = callable.into_function_value();
+                    let compiled_args: Vec<BasicValueEnum> = args
+                        .iter()
+                        .map(|a| to_basic_value_enum(self.codegen(a).unwrap()))
+                        .collect();
+
+                    let argsv: Vec<BasicMetadataValueEnum> = compiled_args
+                        .iter()
+                        .by_ref()
+                        .map(|&val| val.into())
+                        .collect();
+
+                    Some(
+                        self.builder
+                            .build_call(callable_fn, argsv.as_slice(), "call")
+                            .as_any_value_enum(),
+                    )
+                } else {
+                    None
+                }
+            }
             Ast::Body(_stmts, _ttype) => None,
             Ast::If(_cond, _then, _elze, _ttype) => None,
 

@@ -113,13 +113,18 @@ fn main() -> Result<(), io::Error> {
 
     // ctx.env.push();
     if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
+        println!("main fn {:?}", main_fn.get_type().get_return_type());
+
         module.print_to_stderr();
         let ee = module
             .create_jit_execution_engine(OptimizationLevel::None)
             .unwrap();
         let name = main_fn.get_name().to_str().unwrap().to_string();
 
-        match program.last().unwrap().get_ttype().unwrap() {
+        let final_type = program.last().unwrap().get_ttype().unwrap();
+        match final_type {
+            // TODO: try to match the real llvm return type of the fn
+            // NB: compile_program sets this as a void_type by default for now
             Ttype::Numeric(Numeric::Int) => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
@@ -133,7 +138,15 @@ fn main() -> Result<(), io::Error> {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
-            _ => {}
+
+            // Ttype::Void => unsafe {
+            //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+            //     println!("=> {:?}", compiled_fn.unwrap().call());
+            // },
+            _ => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
         }
         // unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
     }

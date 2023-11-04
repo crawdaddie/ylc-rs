@@ -115,6 +115,7 @@ pub enum Symbol {
     TypeDecl,
     Function(Ttype),
     Variable(Ttype),
+    FnParam(u32, Ttype),
 }
 
 type StackFrame<T> = HashMap<String, T>;
