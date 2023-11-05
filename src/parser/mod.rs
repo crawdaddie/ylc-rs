@@ -37,7 +37,7 @@ pub enum Ast {
     Tuple(Vec<Ast>, Ttype),
     Index(Box<Ast>, Box<Ast>, Ttype),
     Assignment(Box<Ast>, Box<Ast>, Ttype),
-    Fn(Vec<(Ast, Option<Ast>)>, Option<Box<Ast>>, Vec<Ast>, Ttype),
+    Fn(Vec<Ast>, Option<Box<Ast>>, Vec<Ast>, Ttype),
     Call(Box<Ast>, Vec<Ast>, Ttype),
     Body(Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
@@ -194,7 +194,7 @@ pub fn print_ast(ast: Ast, indent: usize) {
         Ast::Index(_obj, _idx, _ttype) => {}
         Ast::Assignment(_id, _val, _ttype) => {}
         Ast::Fn(params, ret, body, _ttype) => {
-            for (p, p_type) in params {
+            for p in params {
                 print_ast(p, 0);
             }
             if let Some(ret) = ret {
@@ -370,15 +370,19 @@ impl Parser {
             .map(|e| assignment_expr!(id.unwrap(), e))
     }
 
-    fn parse_typed_identifier(&mut self) -> Option<(Ast, Option<Ast>)> {
+    fn parse_typed_identifier(&mut self) -> Option<(Identifier, Option<Identifier>)> {
         let id = self.parse_identifier();
         let type_param = if self.expect_token(Token::Colon) {
-            self.parse_type_expression()
+            self.advance();
+            match &self.current {
+                Token::Identifier(id) => Some(id.clone()),
+                _ => None,
+            }
         } else {
             None
         };
 
-        id.map(|id| (id_expr!(id), type_param))
+        id.map(|id| (id, type_param))
     }
 
     fn parse_let_statement(&mut self) -> Option<Ast> {
@@ -516,14 +520,23 @@ impl Parser {
         }
     }
 
-    fn parse_fn_args(&mut self) -> Vec<(Ast, Option<Ast>)> {
+    fn parse_fn_args(&mut self) -> Vec<Ast> {
         let mut args = vec![];
         self.advance();
 
         while self.current != Token::Rp {
             self.skip_token(Token::Comma);
-            if let Some(arg_expr) = self.parse_typed_identifier() {
-                args.push(arg_expr);
+            if let Some((arg, arg_type)) = self.parse_typed_identifier() {
+                let t = match arg_type.as_deref() {
+                    Some("int8") => Ttype::Numeric(Numeric::Int8),
+                    Some("int") => Ttype::Numeric(Numeric::Int),
+                    Some("double") => Ttype::Numeric(Numeric::Num),
+                    Some("bool") => Ttype::Bool,
+                    Some("str") => Ttype::Str,
+                    Some(s) => Ttype::Var(s.into()),
+                    _ => tvar(),
+                };
+                args.push(Ast::Id(arg, t));
             }
         }
         self.advance(); // move past Rp
@@ -708,6 +721,8 @@ pub fn parse(input: String) -> Program {
 
 #[cfg(test)]
 mod tests {
+    use crate::symbols::{tbool, tint, tnum};
+
     use super::*;
 
     use pretty_assertions::assert_eq;
@@ -915,12 +930,40 @@ mod tests {
             vec![Ast::FnDeclaration(
                 "f".into(),
                 Box::new(Ast::Fn(
-                    vec![
-                        ((id_expr!("a")), None),
-                        ((id_expr!("b")), None),
-                        ((id_expr!("c")), None),
-                    ],
+                    vec![id_expr!("a"), id_expr!("b"), id_expr!("c"),],
                     None,
+                    vec![
+                        (binop_expr!(
+                            Token::Plus,
+                            binop_expr!(Token::Plus, id_expr!("a"), id_expr!("b")),
+                            id_expr!("c")
+                        ))
+                    ],
+                    tvar(),
+                ))
+            )],
+            program
+        )
+    }
+
+    #[test]
+    fn typed_fn_declaration() {
+        let input = r#"
+        let f = fn (a: int, b: double, c: bool): int { a + b + c }
+        "#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(
+            vec![Ast::FnDeclaration(
+                "f".into(),
+                Box::new(Ast::Fn(
+                    vec![
+                        id_expr!("a", tint()),
+                        id_expr!("b", tnum()),
+                        id_expr!("c", tbool()),
+                    ],
+                    Some(Box::new(id_expr!("int"))),
                     vec![
                         (binop_expr!(
                             Token::Plus,
@@ -974,11 +1017,7 @@ mod tests {
             vec![Ast::FnDeclaration(
                 "x".into(),
                 Box::new(Ast::Fn(
-                    vec![
-                        ((id_expr!("a")), None),
-                        ((id_expr!("b")), None),
-                        ((id_expr!("c")), None),
-                    ],
+                    vec![id_expr!("a"), id_expr!("b"), id_expr!("c"),],
                     None,
                     vec![if_expr!(
                         binop_expr!(Token::Equality, id_expr!("a"), id_expr!("b")),

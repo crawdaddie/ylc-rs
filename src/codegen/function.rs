@@ -15,11 +15,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn codegen_fn_proto(
         &mut self,
         name: &str,
-        params: &Vec<(Ast, Option<Ast>)>,
+        params: &Vec<Ast>,
         fn_type: Ttype,
     ) -> Option<FunctionValue<'ctx>> {
         let mut param_types = vec![];
-        for (p, p_type) in params {
+        for p in params {
             param_types.push(self.get_type_enum(p.get_ttype().unwrap()))
         }
 
@@ -41,7 +41,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             let fn_val = self.module.add_function(name, fn_type, None);
             for (i, arg) in fn_val.get_param_iter().enumerate() {
-                if let (Ast::Id(n, _), _) = &params[i] {
+                if let Ast::Id(n, _) = &params[i] {
                     arg.set_name(n.as_str());
                 }
             }
@@ -53,7 +53,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn codegen_fn(
         &mut self,
         name: &str,
-        params: &Vec<(Ast, Option<Ast>)>,
+        params: &Vec<Ast>,
         _return_type: Option<Box<Ast>>,
         body: Vec<Ast>,
         ttype: Ttype,
@@ -71,7 +71,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.fn_stack.push(function);
         self.env.push();
 
-        for (idx, (p, p_type)) in params.iter().enumerate() {
+        for (idx, p) in params.iter().enumerate() {
             if let Ast::Id(p, ttype) = p {
                 self.env.bind_symbol(
                     p.clone(),

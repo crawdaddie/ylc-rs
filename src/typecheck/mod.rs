@@ -29,7 +29,7 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
         }
         Ast::Fn(params_vec, _ret_type_ast, body, ttype) => {
             apply_substitution(ttype, subs);
-            for (p, _) in params_vec {
+            for p in params_vec {
                 update_types(p, subs);
             }
             for s in body {
