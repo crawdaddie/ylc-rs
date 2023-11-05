@@ -152,7 +152,7 @@ mod tests {
 
     #[ignore]
     #[test]
-    fn test_unify_constraints() {
+    fn t_unify_constraints() {
         let tests: Vec<(Vec<Constraint>, Vec<(String, Ttype)>)> = vec![(
             vec![
                 Constraint {

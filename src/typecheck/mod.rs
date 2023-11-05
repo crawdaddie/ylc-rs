@@ -29,7 +29,7 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
         }
         Ast::Fn(params_vec, _ret_type_ast, body, ttype) => {
             apply_substitution(ttype, subs);
-            for p in params_vec {
+            for (p, _) in params_vec {
                 update_types(p, subs);
             }
             for s in body {
@@ -121,7 +121,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_curried_function() {
+    fn curried_function() {
         let input = r#"
         let f = fn (a, b, c, d) {
             a + b + c + d

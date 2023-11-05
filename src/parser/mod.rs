@@ -37,7 +37,7 @@ pub enum Ast {
     Tuple(Vec<Ast>, Ttype),
     Index(Box<Ast>, Box<Ast>, Ttype),
     Assignment(Box<Ast>, Box<Ast>, Ttype),
-    Fn(Vec<Ast>, Option<Box<Ast>>, Vec<Ast>, Ttype),
+    Fn(Vec<(Ast, Option<Ast>)>, Option<Box<Ast>>, Vec<Ast>, Ttype),
     Call(Box<Ast>, Vec<Ast>, Ttype),
     Body(Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
@@ -182,6 +182,9 @@ pub fn print_ast(ast: Ast, indent: usize) {
         Ast::TypeDeclaration(_id, _type_expr) => {}
 
         //expressions
+        // Ast::Id(id, Some(t), _ttype) => {
+        //     print!("{} {:?}, ", id, *t);
+        // }
         Ast::Id(id, _ttype) => {
             print!("{}, ", id);
         }
@@ -191,7 +194,7 @@ pub fn print_ast(ast: Ast, indent: usize) {
         Ast::Index(_obj, _idx, _ttype) => {}
         Ast::Assignment(_id, _val, _ttype) => {}
         Ast::Fn(params, ret, body, _ttype) => {
-            for p in params {
+            for (p, p_type) in params {
                 print_ast(p, 0);
             }
             if let Some(ret) = ret {
@@ -367,10 +370,25 @@ impl Parser {
             .map(|e| assignment_expr!(id.unwrap(), e))
     }
 
+    fn parse_typed_identifier(&mut self) -> Option<(Ast, Option<Ast>)> {
+        let id = self.parse_identifier();
+        let type_param = if self.expect_token(Token::Colon) {
+            self.parse_type_expression()
+        } else {
+            None
+        };
+
+        id.map(|id| (id_expr!(id), type_param))
+    }
+
     fn parse_let_statement(&mut self) -> Option<Ast> {
         self.advance();
-        let id1 = self.parse_identifier(); // type??
-        let id2 = self.parse_identifier(); // id
+        let id = self.parse_identifier();
+        let type_param = if self.expect_token(Token::Colon) {
+            self.parse_type_expression()
+        } else {
+            None
+        };
 
         if self.expect_token(Token::Assignment) {
             match self.current {
@@ -378,7 +396,7 @@ impl Parser {
                     self.advance();
                     if self.expect_token(Token::Fn) {
                         Some(Ast::FnDeclaration(
-                            id1.unwrap(),
+                            id.unwrap(),
                             Box::new(self.parse_fn_expression()?),
                         ))
                     } else {
@@ -386,33 +404,18 @@ impl Parser {
                     }
                 }
                 Token::Fn => Some(Ast::FnDeclaration(
-                    id1.unwrap(),
+                    id.unwrap(),
                     Box::new(self.parse_fn_expression().unwrap()),
                 )),
 
-                _ => {
-                    if let Some(n) = id2 {
-                        // id1 is type & id2 is id
-                        Some(Ast::Let(
-                            n,
-                            id1.map(|i| Box::new(id_expr!(i))),
-                            Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
-                        ))
-                    } else {
-                        Some(Ast::Let(
-                            id1.unwrap(),
-                            None,
-                            Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
-                        ))
-                    }
-                }
+                _ => Some(Ast::Let(
+                    id.unwrap(),
+                    type_param.map(|t| Box::new(t)),
+                    Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
+                )),
             }
         } else {
-            Some(Ast::Let(
-                id2.clone().unwrap_or(id1.clone().unwrap()),
-                id1.map(|i| Box::new(id_expr!(i))),
-                None,
-            ))
+            Some(Ast::Let(id.unwrap(), type_param.map(|t| Box::new(t)), None))
         }
     }
 
@@ -513,19 +516,19 @@ impl Parser {
         }
     }
 
-    fn parse_fn_args(&mut self) -> Vec<Ast> {
-        let mut exprs = vec![];
+    fn parse_fn_args(&mut self) -> Vec<(Ast, Option<Ast>)> {
+        let mut args = vec![];
         self.advance();
 
         while self.current != Token::Rp {
             self.skip_token(Token::Comma);
-            if let Some(expr) = self.parse_expression(Precedence::None) {
-                exprs.push(expr);
+            if let Some(arg_expr) = self.parse_typed_identifier() {
+                args.push(arg_expr);
             }
         }
         self.advance(); // move past Rp
 
-        exprs
+        args
     }
 
     fn parse_fn_expression(&mut self) -> Option<Ast> {
@@ -534,9 +537,8 @@ impl Parser {
             return None;
         };
         let args = self.parse_fn_args();
-
-        let return_type = if self.current != Token::LeftBrace {
-            Some(Box::new(self.parse_type_expression()?))
+        let return_type = if self.expect_token(Token::Colon) {
+            self.parse_type_expression().map(|t| Box::new(t))
         } else {
             None
         };
@@ -546,6 +548,7 @@ impl Parser {
         } else {
             vec![]
         };
+
         Some(Ast::Fn(args, return_type, body, tvar()))
     }
 
@@ -714,7 +717,7 @@ mod tests {
     }
 
     #[test]
-    fn test_let() {
+    fn let_stmt() {
         let input = r#"
         let a = 1 
         "#;
@@ -728,9 +731,9 @@ mod tests {
     }
 
     #[test]
-    fn test_let_typed() {
+    fn let_typed() {
         let input = r#"
-        let int a = 1 
+        let a: int = 1 
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -746,7 +749,7 @@ mod tests {
     }
 
     #[test]
-    fn test_assignment() {
+    fn assignment() {
         let input = r#"a = 1 + 1"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -762,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn test_math_exprs() {
+    fn math_exprs() {
         let tests = vec![
             (
                 r#"1 + 7.0"#,
@@ -799,7 +802,7 @@ mod tests {
 
     #[test]
 
-    fn test_grouping() {
+    fn grouping() {
         let input = r#"(1 + 1)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -811,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tuple() {
+    fn tuple() {
         let input = r#"(1, 1)"#;
 
         let mut parser = Parser::new(Lexer::new(input.into()));
@@ -821,7 +824,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tuple_len_one() {
+    fn tuple_len_one() {
         let input = r#"(1,)"#;
 
         let mut parser = Parser::new(Lexer::new(input.into()));
@@ -831,7 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tuple_ids() {
+    fn tuple_ids() {
         let input = r#"(a, b)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -843,7 +846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unop() {
+    fn unop() {
         let input = r#"
         -7.0
         "#;
@@ -854,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unop_bang() {
+    fn unop_bang() {
         let input = r#"
         !1
         "#;
@@ -865,7 +868,7 @@ mod tests {
     }
 
     #[test]
-    fn test_if_else() {
+    fn if_else() {
         let input = r#"if true {1} else {2}"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -883,7 +886,7 @@ mod tests {
     }
 
     #[test]
-    fn test_if_else_tuple() {
+    fn if_else_tuple() {
         let input = r#"if (true) {(1, 2)} else {(3, 4)}"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -901,7 +904,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fn_declaration() {
+    fn fn_declaration() {
         let input = r#"
         let f = fn (a, b, c) { a + b + c }
         "#;
@@ -912,7 +915,11 @@ mod tests {
             vec![Ast::FnDeclaration(
                 "f".into(),
                 Box::new(Ast::Fn(
-                    vec![(id_expr!("a")), (id_expr!("b")), (id_expr!("c")),],
+                    vec![
+                        ((id_expr!("a")), None),
+                        ((id_expr!("b")), None),
+                        ((id_expr!("c")), None),
+                    ],
                     None,
                     vec![
                         (binop_expr!(
@@ -929,9 +936,9 @@ mod tests {
     }
 
     #[test]
-    fn test_extern_fn_declaration() {
+    fn extern_fn_declaration() {
         let input = r#"
-        let printf = fn () int
+        let printf = fn (): int
         "#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -950,7 +957,7 @@ mod tests {
         )
     }
     #[test]
-    fn test_fn_with_if() {
+    fn fn_with_if() {
         let input = r#"
         let x = fn (a, b, c) {
           if a == b {
@@ -967,7 +974,11 @@ mod tests {
             vec![Ast::FnDeclaration(
                 "x".into(),
                 Box::new(Ast::Fn(
-                    vec![(id_expr!("a")), (id_expr!("b")), (id_expr!("c")),],
+                    vec![
+                        ((id_expr!("a")), None),
+                        ((id_expr!("b")), None),
+                        ((id_expr!("c")), None),
+                    ],
                     None,
                     vec![if_expr!(
                         binop_expr!(Token::Equality, id_expr!("a"), id_expr!("b")),
@@ -988,7 +999,7 @@ mod tests {
     // )],
 
     #[test]
-    fn test_call_expr() {
+    fn call_expr() {
         let input = r#"f()"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -996,7 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn test_call_expr_neg() {
+    fn call_expr_neg() {
         let input = r#"f(-1)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
@@ -1006,7 +1017,7 @@ mod tests {
         )
     }
     #[test]
-    fn test_call_exprs() {
+    fn call_exprs() {
         let mut input = r#"f(1,2,3)"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let mut program = parser.parse_program();

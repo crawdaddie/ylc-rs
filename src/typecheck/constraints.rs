@@ -61,7 +61,7 @@ impl ConstraintGenerator {
         if let Ast::Fn(args_vec, _ret_type_ast, stmts, ttype) = fn_expr {
             self.env.push();
             let mut fn_types = vec![];
-            for arg in args_vec {
+            for (arg, arg_type) in args_vec {
                 self.generate_constraints(arg);
                 fn_types.push(arg.get_ttype().unwrap());
                 if let Ast::Id(arg_id, arg_type) = arg {
@@ -352,8 +352,8 @@ mod tests {
                     "f".into(),
                     Box::new(Ast::Fn(
                         vec![
-                            id_expr!("a", Ttype::tvar("arg_a")),
-                            id_expr!("b", Ttype::tvar("arg_b")),
+                            (id_expr!("a", Ttype::tvar("arg_a")), None),
+                            (id_expr!("b", Ttype::tvar("arg_b")), None),
                         ],
                         None,
                         vec![binop_expr!(
@@ -423,8 +423,8 @@ mod tests {
                     "f".into(),
                     Box::new(Ast::Fn(
                         vec![
-                            id_expr!("a", Ttype::tvar("arg_a")),
-                            id_expr!("b", Ttype::tvar("arg_b")),
+                            (id_expr!("a", Ttype::tvar("arg_a")), None),
+                            (id_expr!("b", Ttype::tvar("arg_b")), None),
                         ],
                         None,
                         vec![
