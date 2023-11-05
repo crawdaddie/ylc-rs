@@ -60,6 +60,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> Option<FunctionValue<'ctx>> {
         let function = self.codegen_fn_proto(name, params, ttype).unwrap();
         if body.is_empty() {
+            // extern fn
             return Some(function);
         }
 
@@ -69,7 +70,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.fn_stack.push(function);
         self.env.push();
-        // TODO: push args & fn itself into the environment
+
         for (idx, p) in params.iter().enumerate() {
             if let Ast::Id(p, ttype) = p {
                 self.env.bind_symbol(
@@ -78,6 +79,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 )
             }
         }
+        self.env.bind_symbol(name.into(), Symbol::RecursiveRef);
 
         let mut v = None;
         for x in body {
@@ -96,5 +98,4 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.builder.position_at_end(previous_block);
         Some(function)
     }
-    pub fn codegen_fn_call(&self) {}
 }

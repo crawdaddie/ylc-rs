@@ -2,6 +2,7 @@ use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Numeric, Symbol, Ttype};
 use std::error::Error;
+mod conditional;
 mod function;
 mod numeric_binop;
 mod numeric_comparison;
@@ -10,6 +11,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
+use inkwell::types::{AnyTypeEnum, BasicType, BasicTypeEnum};
 use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
     PointerValue,
@@ -91,7 +93,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
-        let main_fn =
+        let mut main_fn =
             self.module
                 .add_function("main", self.context.void_type().fn_type(&[], false), None);
 
@@ -104,11 +106,33 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             v = self.codegen(&stmt);
         }
 
-        if v.is_some() {
-            self.add_return_value(v.unwrap());
+        if let Some(v) = v {
+            self.add_return_value(v);
+            // TODO: clone old main_fn into new one with correct return type
+            // let fn_ret_type = v.get_type();
+            // match fn_ret_type {
+            //     AnyTypeEnum::IntType(it) => {
+            //         let og_blocks = main_fn.get_basic_blocks();
+            //
+            //         main_fn = self
+            //             .module
+            //             .add_function("main", it.fn_type(&[], false), None);
+            //
+            //         let basic_block = self.context.append_basic_block(main_fn, "entry");
+            //     }
+            //
+            //     AnyTypeEnum::FloatType(ft) => {
+            //         main_fn = self
+            //             .module
+            //             .add_function("main", ft.fn_type(&[], false), None)
+            //     }
+            //
+            //
+            // _ => {}
         } else {
             self.builder.build_return(None);
         }
+
         println!("top level env: {:?}", self.env);
 
         self.pop_fn_stack();
@@ -142,21 +166,40 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         right: &Ast,
         ttype: Ttype,
     ) -> Option<AnyValueEnum<'ctx>> {
+        let mut l = to_basic_value_enum(self.codegen(left).unwrap());
+        let mut r = to_basic_value_enum(self.codegen(right).unwrap());
         match token {
             Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Modulo => {
                 if let Ttype::Numeric(desired_cast) = ttype {
-                    let mut l = to_basic_value_enum(self.codegen(left).unwrap());
-                    let mut r = to_basic_value_enum(self.codegen(right).unwrap());
                     if ttype.is_num() {
                         l = self.cast_numeric(l, desired_cast);
                         r = self.cast_numeric(r, desired_cast);
                     }
                     self.codegen_numeric_binop(token, l, r, desired_cast)
                 } else {
-                    panic!("attempt to use a numeric binop with non-numeric types")
+                    match (l, r) {
+                        (BasicValueEnum::IntValue(_), BasicValueEnum::IntValue(_)) => {
+                            self.codegen_numeric_binop(token, l, r, Numeric::Int)
+                        }
+
+                        (BasicValueEnum::FloatValue(_), BasicValueEnum::FloatValue(_)) => {
+                            self.codegen_numeric_binop(token, l, r, Numeric::Num)
+                        }
+
+                        (BasicValueEnum::FloatValue(_), BasicValueEnum::IntValue(_)) => {
+                            let r = self.cast_numeric(r, Numeric::Num);
+                            self.codegen_numeric_binop(token, l, r, Numeric::Num)
+                        }
+
+                        (BasicValueEnum::IntValue(_), BasicValueEnum::FloatValue(_)) => {
+                            let l = self.cast_numeric(l, Numeric::Num);
+                            self.codegen_numeric_binop(token, l, r, Numeric::Num)
+                        }
+                        _ => panic!("attempt to use a numeric binop with non-numeric types"),
+                    }
                 }
             }
-            Token::Gt | Token::Gte | Token::Lt | Token::Lte => {
+            Token::Equality | Token::Gt | Token::Gte | Token::Lt | Token::Lte => {
                 let ltype = left.get_ttype().unwrap();
                 let rtype = left.get_ttype().unwrap();
                 if let Some(max_type) = max_numeric_type(ltype, rtype) {
@@ -177,6 +220,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
             _ => None,
         }
+    }
+    fn codegen_block(&mut self, block: &Vec<Ast>) -> Option<AnyValueEnum<'ctx>> {
+        self.env.push();
+        let mut c = None;
+        for v in block {
+            c = self.codegen(v);
+        }
+        self.env.pop();
+        c
     }
 
     fn codegen(&mut self, expr: &Ast) -> Option<AnyValueEnum<'ctx>> {
@@ -213,6 +265,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                             current_fn.get_nth_param(idx.clone()).map(|e| e.into())
                         }
                         Symbol::Function(fn_type) => self.get_function(&id).map(|f| f.into()),
+                        Symbol::RecursiveRef => self.current_fn().map(|f| f.as_any_value_enum()),
                         _ => None,
                     }
                 } else {
@@ -282,9 +335,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
             }
             Ast::Body(_stmts, _ttype) => None,
-            Ast::If(_cond, _then, _elze, _ttype) => None,
+            Ast::If(cond, then, elze, ttype) => {
+                let condition = self.codegen(cond)?.into_int_value();
+                self.codegen_conditional_expr(condition, then, elze, ttype.clone())
+            }
 
-            Ast::Int8(i) => None,
+            Ast::Int8(i) => {
+                let value = self
+                    .context
+                    .i8_type()
+                    .const_int(TryInto::try_into(*i).unwrap(), true);
+                Some(AnyValueEnum::IntValue(value))
+            }
             Ast::Integer(i) => {
                 let value = self
                     .context

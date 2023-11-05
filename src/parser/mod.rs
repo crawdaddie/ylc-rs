@@ -374,6 +374,16 @@ impl Parser {
 
         if self.expect_token(Token::Assignment) {
             match self.current {
+                Token::Extern => {
+                    if self.expect_token(Token::Fn) {
+                        Some(Ast::FnDeclaration(
+                            id1.unwrap(),
+                            Box::new(self.parse_fn_expression()?),
+                        ))
+                    } else {
+                        None
+                    }
+                }
                 Token::Fn => Some(Ast::FnDeclaration(
                     id1.unwrap(),
                     Box::new(self.parse_fn_expression().unwrap()),
@@ -481,7 +491,7 @@ impl Parser {
 
         match self.current {
             Token::Rp => {
-                // self.advance();
+                self.advance();
                 expr
             }
             Token::Comma => self.parse_tuple(expr),
@@ -562,7 +572,7 @@ impl Parser {
 
             let body = self.parse_body();
 
-            // self.advance();
+            self.advance();
             Some(body)
         } else {
             None
@@ -579,6 +589,8 @@ impl Parser {
                 while self.current != Token::Rp {
                     self.skip_token(Token::Comma);
                     if let Some(expr) = self.parse_expression(Precedence::None) {
+                        println!("expr {:?}", expr);
+                        self.print_current();
                         call_params.push(expr);
                     }
                 }
@@ -587,17 +599,39 @@ impl Parser {
             _ => None,
         }
     }
+    fn parse_int(&mut self, i: i64) -> Option<Ast> {
+        self.advance();
+        Some(int_expr!(i))
+    }
+
+    fn parse_num(&mut self, n: f64) -> Option<Ast> {
+        self.advance();
+        Some(num_expr!(n))
+    }
+
+    fn parse_str(&mut self, s: String) -> Option<Ast> {
+        self.advance();
+        Some(str_expr!(s))
+    }
+    fn parse_bool(&mut self, b: bool) -> Option<Ast> {
+        self.advance();
+        Some(bool_expr!(b))
+    }
+    fn parse_id(&mut self, id: String) -> Option<Ast> {
+        self.advance();
+        Some(id_expr!(id))
+    }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Ast> {
         // prefix
-        let mut left = match self.current {
-            Token::Integer(i) => Some(int_expr!(i)),
-            Token::Number(i) => Some(num_expr!(i)),
-            Token::String(ref mut s) => Some(str_expr!(s.clone())),
-            Token::True => Some(bool_expr!(true)),
-            Token::False => Some(bool_expr!(false)),
-            Token::Identifier(ref mut id) => Some(id_expr!(id.clone())),
-
+        let mut tok = self.current.clone();
+        let mut left = match tok {
+            Token::Integer(i) => self.parse_int(i),
+            Token::Number(i) => self.parse_num(i),
+            Token::String(s) => self.parse_str(s.clone()),
+            Token::True => self.parse_bool(true),
+            Token::False => self.parse_bool(false),
+            Token::Identifier(id) => self.parse_id(id.clone()),
             Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expr(),
             Token::Lp => self.parse_grouping(),
             Token::If => self.parse_conditional_expr(),
@@ -608,9 +642,9 @@ impl Parser {
             }
         };
 
-        self.advance();
+        tok = self.current.clone();
 
-        while precedence < self.token_to_precedence(&self.current) {
+        while precedence < self.token_to_precedence(&tok) {
             match self.current {
                 Token::Plus
                 | Token::Minus
@@ -637,6 +671,7 @@ impl Parser {
                 _ => return left,
             }
         }
+
         left
     }
 
@@ -662,6 +697,8 @@ pub fn parse(input: String) -> Program {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use pretty_assertions::assert_eq;
 
     fn tvar() -> Ttype {
         Ttype::tvar("")
@@ -773,6 +810,17 @@ mod tests {
 
         assert_eq!(vec![tuple_expr!(vec![int_expr!(1), int_expr!(1)])], program)
     }
+
+    #[test]
+    fn test_tuple_len_one() {
+        let input = r#"(1,)"#;
+
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(vec![tuple_expr!(vec![int_expr!(1)])], program)
+    }
+
     #[test]
     fn test_tuple_ids() {
         let input = r#"(a, b)"#;
@@ -809,7 +857,7 @@ mod tests {
 
     #[test]
     fn test_if_else() {
-        let input = r#"if (true) {1} else {2}"#;
+        let input = r#"if true {1} else {2}"#;
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
 
@@ -914,6 +962,17 @@ mod tests {
         let mut parser = Parser::new(Lexer::new(input.into()));
         let program = parser.parse_program();
         assert_eq!(vec![(call_expr!(id_expr!("f"), vec![]))], program,)
+    }
+
+    #[test]
+    fn test_call_expr_neg() {
+        let input = r#"f(-1)"#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+        assert_eq!(
+            vec![(call_expr!(id_expr!("f"), vec![unop_expr!(Token::Minus, int_expr!(1))]))],
+            program,
+        )
     }
     #[test]
     fn test_call_exprs() {

@@ -106,6 +106,29 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     )
                     .as_any_value_enum(),
             ),
+
+            Token::Equality if desired_cast == Numeric::Num => Some(
+                self.builder
+                    .build_float_compare(
+                        FloatPredicate::OEQ,
+                        l.into_float_value(),
+                        r.into_float_value(),
+                        "tmp_eq",
+                    )
+                    .as_any_value_enum(),
+            ),
+
+            Token::Equality => Some(
+                self.builder
+                    .build_int_compare(
+                        IntPredicate::EQ,
+                        l.into_int_value(),
+                        r.into_int_value(),
+                        "tmp_eq",
+                    )
+                    .as_any_value_enum(),
+            ),
+
             _ => None,
         }
     }

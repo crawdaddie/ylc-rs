@@ -116,6 +116,7 @@ pub enum Symbol {
     Function(Ttype),
     Variable(Ttype),
     FnParam(u32, Ttype),
+    RecursiveRef,
 }
 
 type StackFrame<T> = HashMap<String, T>;

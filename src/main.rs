@@ -43,26 +43,9 @@ fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
     Ok(contents)
 }
 
-pub struct CodegenCtx<'ctx> {
-    context: &'ctx Context,
-    module: Module<'ctx>,
-    builder: Builder<'ctx>,
-    execution_engine: ExecutionEngine<'ctx>,
-    env: symbols::Env<Symbol>,
+extern "C" {
+    fn printf(format: *const i8, ...) -> i32;
 }
-
-impl<'ctx> CodegenCtx<'ctx> {
-    pub fn get_function<T>(&self, fn_name: &str) -> Option<JitFunction<'ctx, T>>
-    where
-        T: UnsafeFunctionPointer,
-    {
-        unsafe { self.execution_engine.get_function::<T>(fn_name).ok() }
-    }
-}
-
-/// Calling this is innately `unsafe` because there's no guarantee it doesn't
-/// do `unsafe` operations internally.
-type MainFunc = unsafe extern "C" fn() -> ();
 
 fn main() -> Result<(), io::Error> {
     // Parse command-line arguments
@@ -83,23 +66,16 @@ fn main() -> Result<(), io::Error> {
     // Create FPM
     let fpm = PassManager::create(&module);
 
-    // fpm.add_instruction_combining_pass();
-    // fpm.add_reassociate_pass();
-    // fpm.add_gvn_pass();
-    // fpm.add_cfg_simplification_pass();
-    // fpm.add_basic_alias_analysis_pass();
-    // fpm.add_promote_memory_to_register_pass();
-    // fpm.add_instruction_combining_pass();
-    // fpm.add_reassociate_pass();
+    fpm.add_instruction_combining_pass();
+    fpm.add_reassociate_pass();
+    fpm.add_gvn_pass();
+    fpm.add_cfg_simplification_pass();
+    fpm.add_basic_alias_analysis_pass();
+    fpm.add_promote_memory_to_register_pass();
+    fpm.add_instruction_combining_pass();
+    fpm.add_reassociate_pass();
 
     fpm.initialize();
-    // let mut ctx = CodegenCtx {
-    //     context: &context,
-    //     module,
-    //     builder: context.create_builder(),
-    //     execution_engine,
-    //     env: symbols::Env::<Symbol>::new(),
-    // };
 
     let mut program = parser::parse(file_contents);
     infer_types(&mut program);
@@ -111,10 +87,7 @@ fn main() -> Result<(), io::Error> {
     }
     println!("\x1b[1;0m");
 
-    // ctx.env.push();
     if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
-        println!("main fn {:?}", main_fn.get_type().get_return_type());
-
         module.print_to_stderr();
         let ee = module
             .create_jit_execution_engine(OptimizationLevel::None)

@@ -511,6 +511,10 @@ mod tests {
                     rhs: Ttype::tvar("fn_ret"),
                 },
                 Constraint {
+                    lhs: Ttype::tvar("fn_arg_0"),
+                    rhs: Ttype::Numeric(Numeric::Int),
+                },
+                Constraint {
                     lhs: Ttype::Numeric(Numeric::Int),
                     rhs: Ttype::tvar("fn_arg_0"),
                 },
@@ -560,8 +564,16 @@ mod tests {
                     rhs: Ttype::tvar("fn_arg_0"),
                 },
                 Constraint {
+                    lhs: Ttype::tvar("fn_arg_0"),
+                    rhs: Ttype::tvar("a_ref"),
+                },
+                Constraint {
                     lhs: Ttype::tvar("b_ref"),
                     rhs: Ttype::tvar("fn_arg_1"),
+                },
+                Constraint {
+                    lhs: Ttype::tvar("fn_arg_1"),
+                    rhs: Ttype::tvar("b_ref"),
                 },
                 Constraint {
                     lhs: Ttype::tvar("fn_ref"),
