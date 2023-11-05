@@ -375,6 +375,7 @@ impl Parser {
         if self.expect_token(Token::Assignment) {
             match self.current {
                 Token::Extern => {
+                    self.advance();
                     if self.expect_token(Token::Fn) {
                         Some(Ast::FnDeclaration(
                             id1.unwrap(),
@@ -504,7 +505,12 @@ impl Parser {
         }
     }
     fn parse_type_expression(&mut self) -> Option<Ast> {
-        None
+        let tok = self.current.clone();
+        self.advance();
+        match &tok {
+            Token::Identifier(id) => Some(id_expr!(id)),
+            _ => None,
+        }
     }
 
     fn parse_fn_args(&mut self) -> Vec<Ast> {
@@ -524,19 +530,22 @@ impl Parser {
 
     fn parse_fn_expression(&mut self) -> Option<Ast> {
         self.advance();
-
         if self.current != Token::Lp {
             return None;
         };
         let args = self.parse_fn_args();
 
         let return_type = if self.current != Token::LeftBrace {
-            Some(Box::new(self.parse_type_expression().unwrap()))
+            Some(Box::new(self.parse_type_expression()?))
         } else {
             None
         };
 
-        let body = self.parse_body();
+        let body = if self.current == Token::LeftBrace {
+            self.parse_body()
+        } else {
+            vec![]
+        };
         Some(Ast::Fn(args, return_type, body, tvar()))
     }
 
@@ -912,6 +921,28 @@ mod tests {
                             id_expr!("c")
                         ))
                     ],
+                    tvar(),
+                ))
+            )],
+            program
+        )
+    }
+
+    #[test]
+    fn test_extern_fn_declaration() {
+        let input = r#"
+        let printf = fn () int
+        "#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(
+            vec![Ast::FnDeclaration(
+                "printf".into(),
+                Box::new(Ast::Fn(
+                    vec![],
+                    Some(Box::new(id_expr!("int"))),
+                    vec![],
                     tvar(),
                 ))
             )],

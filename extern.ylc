@@ -1,2 +1,3 @@
-let printf = extern fn ()
+let printf = fn () int
 printf()
+let b = "hello"
