@@ -54,7 +54,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         name: &str,
         params: &Vec<Ast>,
-        _return_type: Option<Box<Ast>>,
+        _return_type: Option<Ttype>,
         body: Vec<Ast>,
         ttype: Ttype,
     ) -> Option<FunctionValue<'ctx>> {

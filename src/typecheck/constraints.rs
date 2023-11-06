@@ -58,7 +58,7 @@ impl ConstraintGenerator {
         fin.get_ttype()
     }
     fn fn_declaration(&mut self, id: Identifier, fn_expr: &Ast) {
-        if let Ast::Fn(args_vec, _ret_type_ast, stmts, ttype) = fn_expr {
+        if let Ast::Fn(args_vec, ret_type, stmts, ttype) = fn_expr {
             self.env.push();
             let mut fn_types = vec![];
             for arg in args_vec {
@@ -76,7 +76,11 @@ impl ConstraintGenerator {
                 stmts, None, // TODO: ret_type
             );
 
-            fn_types.push(final_stmt_type.unwrap_or(tvar()));
+            if let Some(ret_type) = ret_type {
+                fn_types.push(ret_type.clone())
+            } else {
+                fn_types.push(final_stmt_type.unwrap_or(tvar()));
+            }
             self.env.pop();
 
             let fn_type = Ttype::Fn(fn_types);

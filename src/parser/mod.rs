@@ -37,7 +37,7 @@ pub enum Ast {
     Tuple(Vec<Ast>, Ttype),
     Index(Box<Ast>, Box<Ast>, Ttype),
     Assignment(Box<Ast>, Box<Ast>, Ttype),
-    Fn(Vec<Ast>, Option<Box<Ast>>, Vec<Ast>, Ttype),
+    Fn(Vec<Ast>, Option<Ttype>, Vec<Ast>, Ttype),
     Call(Box<Ast>, Vec<Ast>, Ttype),
     Body(Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
@@ -198,7 +198,7 @@ pub fn print_ast(ast: Ast, indent: usize) {
                 print_ast(p, 0);
             }
             if let Some(ret) = ret {
-                print_ast(*ret, 0);
+                print!("{:?}", ret);
             }
             println!();
             for s in body {
@@ -550,8 +550,17 @@ impl Parser {
             return None;
         };
         let args = self.parse_fn_args();
+
         let return_type = if self.expect_token(Token::Colon) {
-            self.parse_type_expression().map(|t| Box::new(t))
+            self.parse_identifier().map(|t| match t.as_str() {
+                "int8" => Ttype::Numeric(Numeric::Int8),
+                "int" => Ttype::Numeric(Numeric::Int),
+                "double" => Ttype::Numeric(Numeric::Num),
+                "bool" => Ttype::Bool,
+                "str" => Ttype::Str,
+                s => Ttype::Var(s.into()),
+                _ => tvar(),
+            })
         } else {
             None
         };
@@ -963,7 +972,7 @@ mod tests {
                         id_expr!("b", tnum()),
                         id_expr!("c", tbool()),
                     ],
-                    Some(Box::new(id_expr!("int"))),
+                    Some(Ttype::Numeric(Numeric::Int)),
                     vec![
                         (binop_expr!(
                             Token::Plus,
@@ -991,7 +1000,7 @@ mod tests {
                 "printf".into(),
                 Box::new(Ast::Fn(
                     vec![],
-                    Some(Box::new(id_expr!("int"))),
+                    Some(Ttype::Numeric(Numeric::Int)),
                     vec![],
                     tvar(),
                 ))

@@ -14,13 +14,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> Option<AnyValueEnum<'ctx>> {
         let parent = self.current_fn()?;
 
-        // create condition by comparing without 0.0 and returning an int
-        // let cond = self
-        //     .builder
-        //     .build_float_compare(FloatPredicate::ONE, cond, zero_const, "ifcond")
-        //     .unwrap();
-        //
-        // build branch
         let then_bb = self.context.append_basic_block(*parent, "then");
         let else_bb = self.context.append_basic_block(*parent, "else");
         let cont_bb = self.context.append_basic_block(*parent, "ifcont");
