@@ -1,3 +1,3 @@
-let printf = fn (): int
+let printf = fn (fmt: str, ...): int
 printf()
 let b = "hello"

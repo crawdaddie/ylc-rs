@@ -62,11 +62,19 @@ impl ConstraintGenerator {
             self.env.push();
             let mut fn_types = vec![];
             for arg in args_vec {
-                self.generate_constraints(arg);
-                fn_types.push(arg.get_ttype().unwrap());
-                if let Ast::Id(arg_id, arg_type) = arg {
-                    self.env
-                        .bind_symbol(arg_id.clone(), TypecheckSymbol::Variable(arg_type.clone()));
+                match arg {
+                    Ast::Id(arg_id, arg_type) => {
+                        self.generate_constraints(arg);
+                        fn_types.push(arg.get_ttype().unwrap());
+                        self.env.bind_symbol(
+                            arg_id.clone(),
+                            TypecheckSymbol::Variable(arg_type.clone()),
+                        );
+                    }
+                    Ast::VarArg => {
+                        println!("var arg");
+                    }
+                    _ => {}
                 }
             }
             self.env

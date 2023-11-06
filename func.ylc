@@ -1,4 +1,4 @@
-let fib = fn (a, b) {
+let fib = fn (a: int, b: int): int {
   a + b
 }
 fib(1, 3)

@@ -41,6 +41,7 @@ pub enum Ast {
     Call(Box<Ast>, Vec<Ast>, Ttype),
     Body(Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
+    VarArg,
 
     // literals
     Int8(i8),
@@ -215,6 +216,7 @@ pub fn print_ast(ast: Ast, indent: usize) {
         Ast::Number(_v) => {}
         Ast::Bool(_v) => {}
         Ast::String(_v) => {}
+        Ast::VarArg => {}
     }
 }
 
@@ -373,15 +375,19 @@ impl Parser {
     fn parse_typed_identifier(&mut self) -> Option<(Identifier, Option<Identifier>)> {
         let id = self.parse_identifier();
         let type_param = if self.expect_token(Token::Colon) {
-            self.advance();
-            match &self.current {
-                Token::Identifier(id) => Some(id.clone()),
+            let tok = self.current.clone();
+            match &tok {
+                Token::Identifier(t) => {
+                    self.advance();
+                    Some(t.clone())
+                }
                 _ => None,
             }
         } else {
             None
         };
 
+        println!("id {:?} {:?}", id, type_param);
         id.map(|id| (id, type_param))
     }
 
@@ -527,6 +533,7 @@ impl Parser {
         while self.current != Token::Rp {
             self.skip_token(Token::Comma);
             if let Some((arg, arg_type)) = self.parse_typed_identifier() {
+                println!("arg {:?}, {:?}", arg, arg_type);
                 let t = match arg_type.as_deref() {
                     Some("int8") => Ttype::Numeric(Numeric::Int8),
                     Some("int") => Ttype::Numeric(Numeric::Int),
@@ -537,6 +544,10 @@ impl Parser {
                     _ => tvar(),
                 };
                 args.push(Ast::Id(arg, t));
+            } else if self.current == Token::TripleDot {
+                println!("var arg?   {:?}", self.current);
+                self.advance();
+                args.push(Ast::VarArg)
             }
         }
         self.advance(); // move past Rp
@@ -550,6 +561,7 @@ impl Parser {
             return None;
         };
         let args = self.parse_fn_args();
+        println!("parsed args {:?}", args);
 
         let return_type = if self.expect_token(Token::Colon) {
             self.parse_identifier().map(|t| match t.as_str() {
