@@ -26,12 +26,12 @@ pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
                 ),
             }
         }
-        Ttype::Application(fn_name, args) => {
+        Ttype::Application(fn_name, args, fn_type) => {
             let new_args = args
                 .iter()
                 .map(|v| lookup_contained_types(v.clone(), subs))
                 .collect();
-            Ttype::Application(fn_name.clone(), new_args)
+            Ttype::Application(fn_name.clone(), new_args, fn_type.clone())
         }
 
         Ttype::Fn(fn_components) => Ttype::Fn(
@@ -103,7 +103,7 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
 
             subs.insert(v.clone(), lookup);
         }
-        (Ttype::Application(c1, args1), Ttype::Application(c2, args2)) if c1 == c2 => {
+        (Ttype::Application(c1, args1, _), Ttype::Application(c2, args2, _)) if c1 == c2 => {
             for (arg1, arg2) in args1.iter().zip(args2) {
                 unify(arg1, arg2, subs);
             }
@@ -122,7 +122,7 @@ fn occurs(l: &str, r: &Ttype, subs: &HashMap<String, Ttype>) -> bool {
     match r {
         Ttype::Var(v2) if l == v2 => true,
         Ttype::Var(v2) => subs.get(v2).map_or(false, |t| occurs(l, t, subs)),
-        Ttype::Application(_, args) | Ttype::Tuple(args) => {
+        Ttype::Application(_, args, _) | Ttype::Tuple(args) => {
             args.iter().any(|arg| occurs(l, arg, subs))
         }
         Ttype::MaxNumeric(u, v) => occurs(l, u, subs) || occurs(l, v, subs),

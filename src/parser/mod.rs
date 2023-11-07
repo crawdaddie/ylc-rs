@@ -102,6 +102,12 @@ impl Ast {
             | Ast::Call(_, _, t)
             | Ast::If(_, _, _, t) => Some(t.clone()),
 
+            Ast::Let(
+                _,
+                _,       // optional explicit type parameter
+                Some(v), // optional immediate assignment expression
+            ) => v.get_ttype(),
+
             // literals
             Ast::Int8(_) => Some(Ttype::Numeric(Numeric::Int8)),
             Ast::Integer(_) => Some(Ttype::Numeric(Numeric::Int)),

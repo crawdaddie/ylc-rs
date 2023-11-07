@@ -19,8 +19,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         fn_type: Ttype,
     ) -> Option<FunctionValue<'ctx>> {
         let mut param_types = vec![];
+        let mut is_var_arg = false;
         for p in params {
-            param_types.push(self.get_type_enum(p.get_ttype().unwrap()))
+            match p {
+                Ast::VarArg => {
+                    is_var_arg = true;
+                }
+                Ast::Id(_, _) => {
+                    param_types.push(self.get_type_enum(p.get_ttype().unwrap()));
+                }
+                _ => {}
+            }
         }
 
         if let Ttype::Fn(fn_types) = fn_type {
@@ -30,13 +39,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             let fn_type = if ret_type == Ttype::Numeric(Numeric::Int) {
                 let ret = self.context.i64_type();
-                ret.fn_type(param_types, false)
+                ret.fn_type(param_types, is_var_arg)
             } else if ret_type == Ttype::Numeric(Numeric::Num) {
                 let ret = self.context.f64_type();
-                ret.fn_type(param_types, false)
+                ret.fn_type(param_types, is_var_arg)
             } else {
                 let ret = self.context.void_type();
-                ret.fn_type(param_types, false)
+                ret.fn_type(param_types, is_var_arg)
             };
 
             let fn_val = self.module.add_function(name, fn_type, None);

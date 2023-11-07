@@ -11,7 +11,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{AnyTypeEnum, BasicType, BasicTypeEnum};
+use inkwell::types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType};
 use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
     PointerValue,
@@ -91,11 +91,33 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.env.pop();
         self.fn_stack.pop();
     }
+    fn type_to_llvm_fn(&self, ttype: Ttype) -> FunctionType<'ctx> {
+        match ttype {
+            Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
+            Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
+            Ttype::Application(f, _, fn_type) => {
+                if let Ttype::Fn(fn_type) = *fn_type {
+                    println!("fn type {:?}", fn_type);
+                    self.type_to_llvm_fn((*fn_type).last().unwrap().clone())
+                } else {
+                    self.context.void_type().fn_type(&[], false)
+                }
+            }
+            _ => self.context.void_type().fn_type(&[], false),
+        }
+    }
+    fn get_main_fn_type(&self, program: &Program) -> FunctionType<'ctx> {
+        let last_stmt = program.last().unwrap();
+        let t = last_stmt.get_ttype().unwrap();
+        let t = self.type_to_llvm_fn(t);
+        println!("main ret type {:?}", t.get_return_type());
+        t
+    }
 
     fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
-        let mut main_fn =
-            self.module
-                .add_function("main", self.context.void_type().fn_type(&[], false), None);
+        let main_fn = self
+            .module
+            .add_function("main", self.get_main_fn_type(program), None);
 
         let basic_block = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(basic_block);
@@ -238,9 +260,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 _t,          // optional explicit type parameter
                 Some(value), // optional immediate assignment expression
             ) => {
+                let llvm_value = self.codegen(value);
                 self.env
                     .bind_symbol(id.clone(), Symbol::Variable(value.get_ttype().unwrap()));
-                None
+                llvm_value
             }
 
             Ast::FnDeclaration(id, fn_expr) => {
@@ -365,7 +388,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .const_int(if *b { 1 } else { 0 }, false);
                 Some(AnyValueEnum::IntValue(value))
             }
-            Ast::String(_s) => None,
+            Ast::String(s) => {
+                let value = self.context.const_string(s.as_bytes(), true);
+                Some(AnyValueEnum::ArrayValue(value))
+            }
             _ => None,
         }
     }

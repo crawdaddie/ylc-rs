@@ -23,7 +23,7 @@ pub enum Ttype {
     Array(Box<Ttype>), // 't[n]
     Uptr,
     Var(String), // 'x
-    Application(String, Vec<Ttype>),
+    Application(String, Vec<Ttype>, Box<Ttype>),
     Nth(usize, Box<Ttype>),
 }
 impl Ttype {
@@ -98,7 +98,7 @@ impl fmt::Debug for Ttype {
             Ttype::Array(inner_type) => write!(f, "Ttype::Array({:?})", inner_type),
             Ttype::Uptr => write!(f, "Ttype::Uptr"),
             Ttype::Nth(i, t) => write!(f, "{:?}[{}]", t, i),
-            Ttype::Application(n, args) => write!(f, "apply({:?} ({:?}))", n, args),
+            Ttype::Application(n, args, _) => write!(f, "apply({:?} ({:?}))", n, args),
         }
     }
 }

@@ -71,9 +71,7 @@ impl ConstraintGenerator {
                             TypecheckSymbol::Variable(arg_type.clone()),
                         );
                     }
-                    Ast::VarArg => {
-                        println!("var arg");
-                    }
+                    Ast::VarArg => fn_types.push(Ttype::Tuple(vec![])),
                     _ => {}
                 }
             }
@@ -200,7 +198,7 @@ impl ConstraintGenerator {
         for (call_param, fn_param) in call_params
             .iter()
             .map(|c| c.get_ttype().unwrap())
-            .zip(&fn_types)
+            .zip(fn_types.clone())
         {
             self.push_constraint(fn_param.clone(), call_param);
         }
@@ -212,12 +210,19 @@ impl ConstraintGenerator {
             return;
         }
 
-        self.push_constraint(ttype.clone(), fn_types.last().unwrap().clone());
+        self.push_constraint(ttype.clone(), fn_types.clone().last().unwrap().clone());
 
         if let Ast::Id(callee_name, _) = callee {
             let args: Vec<Ttype> = call_params.iter().map(|p| p.get_ttype().unwrap()).collect();
 
-            self.push_constraint(ttype, Ttype::Application(callee_name.clone(), args.clone()));
+            self.push_constraint(
+                ttype,
+                Ttype::Application(
+                    callee_name.clone(),
+                    args.clone(),
+                    Box::new(Ttype::Fn(fn_types.clone())),
+                ),
+            );
             // println!(
             //     "application {:?} {:?} {:?}",
             //     callee_name, args, self.constraints
@@ -499,13 +504,9 @@ mod tests {
     #[test]
     fn test_call() {
         let mut cg = ConstraintGenerator::new();
-        cg.env.bind_symbol(
-            "f".into(),
-            TypecheckSymbol::Function(Ttype::Fn(vec![
-                Ttype::tvar("fn_arg_0"),
-                Ttype::tvar("fn_ret"),
-            ])),
-        );
+        let fn_type = Ttype::Fn(vec![Ttype::tvar("fn_arg_0"), Ttype::tvar("fn_ret")]);
+        cg.env
+            .bind_symbol("f".into(), TypecheckSymbol::Function(fn_type.clone()));
         cg.generate_constraints(&call_expr!(
             id_expr!("f", Ttype::tvar("fn_ref")),
             vec![int_expr!(1)],
@@ -516,7 +517,11 @@ mod tests {
             vec![
                 Constraint {
                     lhs: Ttype::tvar("call_expr"),
-                    rhs: Ttype::Application("f".into(), vec![Ttype::Numeric(Numeric::Int)]),
+                    rhs: Ttype::Application(
+                        "f".into(),
+                        vec![Ttype::Numeric(Numeric::Int)],
+                        Box::new(fn_type),
+                    ),
                 },
                 Constraint {
                     lhs: Ttype::tvar("call_expr"),
@@ -542,14 +547,13 @@ mod tests {
     #[test]
     fn test_call_arg_constraints() {
         let mut cg = ConstraintGenerator::new();
-        cg.env.bind_symbol(
-            "f".into(),
-            TypecheckSymbol::Function(Ttype::Fn(vec![
-                Ttype::tvar("fn_arg_0"),
-                Ttype::tvar("fn_arg_1"),
-                Ttype::tvar("fn_ret"),
-            ])),
-        );
+        let fn_type = Ttype::Fn(vec![
+            Ttype::tvar("fn_arg_0"),
+            Ttype::tvar("fn_arg_1"),
+            Ttype::tvar("fn_ret"),
+        ]);
+        cg.env
+            .bind_symbol("f".into(), TypecheckSymbol::Function(fn_type.clone()));
         cg.generate_constraints(&call_expr!(
             id_expr!("f", Ttype::tvar("fn_ref")),
             vec![
@@ -569,6 +573,7 @@ mod tests {
                     rhs: Ttype::Application(
                         "f".into(),
                         vec![Ttype::tvar("a_ref"), Ttype::tvar("b_ref")],
+                        Box::new(fn_type),
                     ),
                 },
                 Constraint {

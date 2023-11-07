@@ -1,16 +1,13 @@
+extern crate inkwell;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 use clap::Parser;
-use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::execution_engine::{ExecutionEngine, JitFunction, UnsafeFunctionPointer};
-use inkwell::module::Module;
 use inkwell::passes::PassManager;
+use inkwell::types::BasicTypeEnum;
 use inkwell::OptimizationLevel;
-use symbols::Symbol;
 
 use crate::codegen::Compiler;
 use crate::symbols::{Numeric, Ttype};
@@ -30,7 +27,7 @@ struct Arguments {
     #[clap(long, short, action)]
     interactive: bool,
 
-    input: String,
+    input: Option<String>,
 }
 
 fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
@@ -43,17 +40,40 @@ fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
     Ok(contents)
 }
 
-extern "C" {
-    fn printf(format: *const i8, ...) -> i32;
-}
+// extern "C" {
+//     fn printf(format: *const i8, ...) -> i32;
+// }
+// #[no_mangle]
+// pub unsafe extern "C" fn printf(fmt: *const i8) -> i32 {
+//     unsafe {
+//         println!("{:?}", fmt.as_ref());
+//     }
+//     1
+// }
+//
+//
+// macro used to print & flush without printing a new line
+// macro_rules! print_flush {
+//     ( $( $x:expr ),* ) => {
+//         print!( $($x, )* );
+//
+//         std::io::stdout().flush().expect("Could not flush to standard output.");
+//     };
+// }
+// #[no_mangle]
+// pub extern "C" fn putchard(x: f64) -> f64 {
+//     print_flush!("{}", x as u8 as char);
+//     x
+// }
 
 fn main() -> Result<(), io::Error> {
     // Parse command-line arguments
     let args = Arguments::parse();
 
     let file_contents = match args.code {
-        true => args.input,
-        false => read_file_to_string(args.input.as_str())?,
+        true => args.input.unwrap(),
+        false if args.interactive => "".into(),
+        false => read_file_to_string(args.input.unwrap().as_str())?,
     };
 
     let context = Context::create();
@@ -94,23 +114,23 @@ fn main() -> Result<(), io::Error> {
             .unwrap();
         let name = main_fn.get_name().to_str().unwrap().to_string();
 
-        let final_type = program.last().unwrap().get_ttype().unwrap();
+        let final_type = main_fn.get_type().get_return_type();
         match final_type {
             // TODO: try to match the real llvm return type of the fn
             // NB: compile_program sets this as a void_type by default for now
-            Ttype::Numeric(Numeric::Int) => unsafe {
+            Some(BasicTypeEnum::IntType(_)) => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
-            Ttype::Numeric(Numeric::Num) => unsafe {
+            Some(BasicTypeEnum::FloatType(_)) => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
 
-            Ttype::Bool => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
+            // Some(BasicTypeEnum::IntType()) => unsafe {
+            //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+            //     println!("=> {:?}", compiled_fn.unwrap().call());
+            // },
 
             // Ttype::Void => unsafe {
             //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
