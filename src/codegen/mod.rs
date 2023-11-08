@@ -11,11 +11,12 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType};
+use inkwell::types::{AnyTypeEnum, ArrayType, BasicType, BasicTypeEnum, FunctionType};
 use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
     PointerValue,
 };
+use inkwell::AddressSpace;
 
 pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
@@ -59,6 +60,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     //     TryFrom::<dyn BasicValue>::try_from(v);
     // }
     fn add_return_value(&mut self, v: AnyValueEnum) {
+        println!("add return value {:?}", v);
         match v {
             AnyValueEnum::IntValue(_) => {
                 self.builder.build_return(Some(&v.into_int_value()));
@@ -67,6 +69,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             AnyValueEnum::FloatValue(_) => {
                 self.builder.build_return(Some(&v.into_float_value()));
             }
+
+            AnyValueEnum::ArrayValue(_) => {
+                self.builder.build_return(Some(&v.into_array_value()));
+            }
+
             _ => {
                 self.builder.build_return(None);
             }
@@ -109,9 +116,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     fn get_main_fn_type(&self, program: &Program) -> FunctionType<'ctx> {
         let last_stmt = program.last().unwrap();
         let t = last_stmt.get_ttype().unwrap();
-        let t = self.type_to_llvm_fn(t);
-        println!("main ret type {:?}", t.get_return_type());
-        t
+        match (&t, last_stmt) {
+            (Ttype::Str, Ast::String(s)) => self
+                .context
+                .i8_type()
+                .array_type(s.len() as u32)
+                .fn_type(&[], false),
+            (_, _) => self.type_to_llvm_fn(t),
+        }
     }
 
     fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
@@ -130,27 +142,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         if let Some(v) = v {
             self.add_return_value(v);
-            // TODO: clone old main_fn into new one with correct return type
-            // let fn_ret_type = v.get_type();
-            // match fn_ret_type {
-            //     AnyTypeEnum::IntType(it) => {
-            //         let og_blocks = main_fn.get_basic_blocks();
-            //
-            //         main_fn = self
-            //             .module
-            //             .add_function("main", it.fn_type(&[], false), None);
-            //
-            //         let basic_block = self.context.append_basic_block(main_fn, "entry");
-            //     }
-            //
-            //     AnyTypeEnum::FloatType(ft) => {
-            //         main_fn = self
-            //             .module
-            //             .add_function("main", ft.fn_type(&[], false), None)
-            //     }
-            //
-            //
-            // _ => {}
         } else {
             self.builder.build_return(None);
         }

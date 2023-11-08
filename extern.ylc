@@ -3,4 +3,3 @@
 
 let printf = fn (fmt: str): int 
 printf("hello")
-

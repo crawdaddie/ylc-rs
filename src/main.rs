@@ -1,13 +1,17 @@
 extern crate inkwell;
+use std::ffi::{c_char, CStr};
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
 use clap::Parser;
+use inkwell::builder::Builder;
 use inkwell::context::Context;
+use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::BasicTypeEnum;
+use inkwell::values::FunctionValue;
 use inkwell::OptimizationLevel;
+use parser::Program;
 
 use crate::codegen::Compiler;
 use crate::symbols::{Numeric, Ttype};
@@ -49,13 +53,65 @@ pub extern "C" fn ex(x: f64) -> f64 {
 static EX: extern "C" fn(f64) -> f64 = ex;
 
 #[no_mangle]
-pub extern "C" fn printf(fmt: *const u8) -> i64 {
-    println!("{:?}", fmt);
+pub unsafe extern "C" fn printf(fmt: *const c_char) -> i64 {
+    println!("--{:?}", fmt);
+    // unsafe {
+    //     let s = CStr::from_ptr(fmt).to_str();
+    //     println!("{:?}", s);
+    // }
     1
 }
 #[used]
-static PRINTF: extern "C" fn(*const u8) -> i64 = printf;
+static PRINTF: unsafe extern "C" fn(*const c_char) -> i64 = printf;
+fn compile<'ctx, 'a>(
+    context: &'ctx Context,
+    builder: &'a Builder<'ctx>,
+    module: &'a Module<'ctx>,
+    fpm: &'a PassManager<FunctionValue<'ctx>>,
+    program: &Program,
+) {
+    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
+        module.print_to_stderr();
+        let ee = module
+            .create_jit_execution_engine(OptimizationLevel::None)
+            .unwrap();
+        let name = main_fn.get_name().to_str().unwrap().to_string();
 
+        // let final_type = main_fn.get_type().get_return_type();
+        let final_type = program.last().unwrap().get_ttype();
+        match final_type {
+            Some(Ttype::Numeric(Numeric::Int)) => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+            Some(Ttype::Numeric(Numeric::Num)) => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+
+            Some(Ttype::Bool) => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+
+            Some(Ttype::Str) => unsafe {
+                let compiled_fn =
+                    ee.get_function::<unsafe extern "C" fn() -> Vec<i8>>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+
+            // Ttype::Void => unsafe {
+            //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+            //     println!("=> {:?}", compiled_fn.unwrap().call());
+            // },
+            _ => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+        }
+        // unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
+    }
+}
 fn main() -> Result<(), io::Error> {
     // Parse command-line arguments
     let args = Arguments::parse();
@@ -92,72 +148,23 @@ fn main() -> Result<(), io::Error> {
         println!("{:?}", s);
     }
     println!("\x1b[1;0m");
-
-    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
-        module.print_to_stderr();
-        let ee = module
-            .create_jit_execution_engine(OptimizationLevel::None)
-            .unwrap();
-        let name = main_fn.get_name().to_str().unwrap().to_string();
-
-        let final_type = main_fn.get_type().get_return_type();
-        match final_type {
-            Some(BasicTypeEnum::IntType(_)) => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
-            Some(BasicTypeEnum::FloatType(_)) => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
-
-            // Some(BasicTypeEnum::IntType()) => unsafe {
-            //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
-            //     println!("=> {:?}", compiled_fn.unwrap().call());
-            // },
-
-            // Ttype::Void => unsafe {
-            //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
-            //     println!("=> {:?}", compiled_fn.unwrap().call());
-            // },
-            _ => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
-        }
-        // unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
-    }
-
-    // let ts_ctx = Arc::new(Mutex::new(ctx)); // unfortunately need to wrap
-    // in Arc(Mutex(...)) because rust can't prove that the closure won't be passed to another
-    // thread
+    compile(&context, &builder, &module, &fpm, &program);
 
     if args.interactive {
         // println!("interactive");
 
-        // let _ = repl::repl(|line| {
-        //     let mut program = parser::parse(line);
-        //
-        //     infer_types(&mut program);
-        //
-        //     println!("\x1b[1;35m");
-        //     for s in &program {
-        //         // print_ast(s.clone(), 0);
-        //         println!("{:?}", s);
-        //     }
-        //     println!("\x1b[1;0m");
-        //
-        //     let mut ctx = ts_ctx.lock().unwrap();
-        //     if codegen_program(program, &mut ctx).is_ok() {
-        //         ctx.module.print_to_stderr();
-        //
-        //         if let Some(main_fn) = ctx.get_function::<MainFunc>("main") {
-        //             unsafe {
-        //                 main_fn.call();
-        //             }
-        //         }
-        //     }
-        // });
+        let _ = repl::repl(|line| {
+            let mut program = parser::parse(line);
+            infer_types(&mut program);
+
+            println!("\x1b[1;35m");
+            for s in &program {
+                // print_ast(s.clone(), 0);
+                println!("{:?}", s);
+            }
+            println!("\x1b[1;0m");
+            // compile(&context, &builder, &module, &fpm, &program);
+        });
     }
 
     Ok(())
