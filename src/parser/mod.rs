@@ -66,7 +66,7 @@ fn tvar() -> Ttype {
 //         id,
 //         t,     // optional explicit type parameter
 //         value, // optional immediate assignment expression
-//     ) => {}
+//     ) => {
 //     Ast::FnDeclaration(id, fn_expr) => {}
 //     Ast::TypeDeclaration(id, type_expr) => {}
 //
@@ -107,6 +107,7 @@ impl Ast {
                 _,       // optional explicit type parameter
                 Some(v), // optional immediate assignment expression
             ) => v.get_ttype(),
+            Ast::FnDeclaration(_, fn_expr) => fn_expr.get_ttype(),
 
             // literals
             Ast::Int8(_) => Some(Ttype::Numeric(Numeric::Int8)),
@@ -119,7 +120,6 @@ impl Ast {
     }
 
     pub fn set_ttype(&mut self, t: Ttype) {
-        println!("set ttype {:?}", t);
         match self {
             Ast::Id(_, ref mut ttype)
             | Ast::Binop(_, _, _, ref mut ttype)
@@ -393,7 +393,6 @@ impl Parser {
             None
         };
 
-        println!("id {:?} {:?}", id, type_param);
         id.map(|id| (id, type_param))
     }
 
@@ -539,7 +538,6 @@ impl Parser {
         while self.current != Token::Rp {
             self.skip_token(Token::Comma);
             if let Some((arg, arg_type)) = self.parse_typed_identifier() {
-                println!("arg {:?}, {:?}", arg, arg_type);
                 let t = match arg_type.as_deref() {
                     Some("int8") => Ttype::Numeric(Numeric::Int8),
                     Some("int") => Ttype::Numeric(Numeric::Int),
@@ -567,7 +565,6 @@ impl Parser {
             return None;
         };
         let args = self.parse_fn_args();
-        println!("parsed args {:?}", args);
 
         let return_type = if self.expect_token(Token::Colon) {
             self.parse_identifier().map(|t| match t.as_str() {
@@ -641,7 +638,6 @@ impl Parser {
                 while self.current != Token::Rp {
                     self.skip_token(Token::Comma);
                     if let Some(expr) = self.parse_expression(Precedence::None) {
-                        println!("expr {:?}", expr);
                         self.print_current();
                         call_params.push(expr);
                     }

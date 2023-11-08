@@ -163,7 +163,24 @@ fn main() -> Result<(), io::Error> {
                 println!("{:?}", s);
             }
             println!("\x1b[1;0m");
-            // compile(&context, &builder, &module, &fpm, &program);
+
+            let module = context.create_module("ylc");
+            let builder = context.create_builder();
+
+            // Create FPM
+            let fpm = PassManager::create(&module);
+
+            fpm.add_instruction_combining_pass();
+            fpm.add_reassociate_pass();
+            fpm.add_gvn_pass();
+            fpm.add_cfg_simplification_pass();
+            fpm.add_basic_alias_analysis_pass();
+            fpm.add_promote_memory_to_register_pass();
+            fpm.add_instruction_combining_pass();
+            fpm.add_reassociate_pass();
+
+            fpm.initialize();
+            compile(&context, &builder, &module, &fpm, &program);
         });
     }
 

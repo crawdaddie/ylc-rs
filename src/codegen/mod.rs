@@ -1,6 +1,7 @@
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Numeric, Symbol, Ttype};
+use std::collections::HashMap;
 use std::error::Error;
 mod conditional;
 mod function;
@@ -18,12 +19,19 @@ use inkwell::values::{
 };
 use inkwell::AddressSpace;
 
+#[derive(Debug)]
+struct GenericFns<'ctx> {
+    ast: Ast,
+    impls: HashMap<Ttype, FunctionValue<'ctx>>,
+}
+
 pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
     pub builder: &'a Builder<'ctx>,
     pub fpm: &'a PassManager<FunctionValue<'ctx>>,
     pub module: &'a Module<'ctx>,
     env: Env<Symbol>,
+    generic_fns: HashMap<String, GenericFns<'ctx>>,
     fn_stack: Vec<FunctionValue<'ctx>>,
 }
 
@@ -52,6 +60,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             fpm: pass_manager,
             module,
             env: Env::<Symbol>::new(),
+            generic_fns: HashMap::new(),
             fn_stack: vec![],
         };
         compiler.compile_program(program)
@@ -60,7 +69,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     //     TryFrom::<dyn BasicValue>::try_from(v);
     // }
     fn add_return_value(&mut self, v: AnyValueEnum) {
-        println!("add return value {:?}", v);
         match v {
             AnyValueEnum::IntValue(_) => {
                 self.builder.build_return(Some(&v.into_int_value()));
@@ -85,6 +93,27 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.module.get_function(name)
     }
 
+    #[inline]
+    fn get_generic_function(
+        &self,
+        callable: &Ast,
+        arg_types: Ttype,
+    ) -> Option<FunctionValue<'ctx>> {
+        if let Ast::Id(callable_id, fn_type) = callable {
+            let gen_fns = self.generic_fns.get(callable_id);
+            println!(
+                "gen fns {:?} {:?} {:?}\ntransform: {:?}",
+                gen_fns,
+                fn_type,
+                arg_types,
+                fn_type.transform_generic(vec![])
+            );
+            None
+        } else {
+            None
+        }
+    }
+
     fn current_fn(&self) -> Option<&FunctionValue<'ctx>> {
         self.fn_stack.last()
     }
@@ -104,7 +133,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
             Ttype::Application(f, _, fn_type) => {
                 if let Ttype::Fn(fn_type) = *fn_type {
-                    println!("fn type {:?}", fn_type);
                     self.type_to_llvm_fn((*fn_type).last().unwrap().clone())
                 } else {
                     self.context.void_type().fn_type(&[], false)
@@ -257,17 +285,21 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 llvm_value
             }
 
-            Ast::FnDeclaration(id, fn_expr) => {
-                if let Ast::Fn(params, return_type, body, fn_type) = (**fn_expr).clone() {
+            Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
+                Ast::Fn(params, return_type, body, fn_type) if fn_type.is_generic() => {
+                    println!("codegen generic fn {:?} {:?}", fn_type, body);
+                    self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
+                    None
+                }
+                Ast::Fn(params, return_type, body, fn_type) => {
                     let func = self.codegen_fn(id, &params, return_type, body, fn_type);
                     self.env
                         .bind_symbol(id.clone(), Symbol::Function(fn_expr.get_ttype().unwrap()));
 
                     func.map(|f| f.as_any_value_enum())
-                } else {
-                    None
                 }
-            }
+                _ => None,
+            },
 
             Ast::TypeDeclaration(_id, _type_expr) => None,
 
@@ -276,8 +308,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     match sym {
                         Symbol::FnParam(idx, ttype) => {
                             let current_fn = self.current_fn().unwrap();
-                            current_fn.get_nth_param(idx.clone()).map(|e| e.into())
+                            current_fn.get_nth_param(*idx).map(|e| e.into())
                         }
+
                         Symbol::Function(fn_type) => self.get_function(&id).map(|f| f.into()),
                         Symbol::RecursiveRef => self.current_fn().map(|f| f.as_any_value_enum()),
                         _ => None,
@@ -324,10 +357,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _ret_type, _body, _ttype) => None,
-            Ast::Call(callable, args, _ttype) => {
-                if let Some(callable) = self.codegen(callable) {
+            Ast::Call(callable, args, arg_types) => {
+                let callable_type = callable.get_ttype().unwrap();
+                let fn_value_enum;
+                if callable_type.is_generic() {
+                    fn_value_enum = self.get_generic_function(callable, arg_types.clone());
+                } else {
+                    fn_value_enum = self.codegen(&callable).map(|v| v.into_function_value());
+                }
+
+                if let Some(callable_fn) = fn_value_enum {
                     // callable is an AnyValue enum
-                    let callable_fn = callable.into_function_value();
                     let compiled_args: Vec<BasicValueEnum> = args
                         .iter()
                         .map(|a| to_basic_value_enum(self.codegen(a).unwrap()))
@@ -339,14 +379,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         .map(|&val| val.into())
                         .collect();
 
-                    Some(
+                    return Some(
                         self.builder
                             .build_call(callable_fn, argsv.as_slice(), "call")
                             .as_any_value_enum(),
-                    )
-                } else {
-                    None
-                }
+                    );
+                };
+                None
             }
             Ast::Body(_stmts, _ttype) => None,
             Ast::If(cond, then, elze, ttype) => {

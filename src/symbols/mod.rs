@@ -1,5 +1,9 @@
 use std::{collections::HashMap, fmt};
 
+use inkwell::values::FunctionValue;
+
+use crate::parser::Ast;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Numeric {
@@ -26,6 +30,7 @@ pub enum Ttype {
     Application(String, Vec<Ttype>, Box<Ttype>),
     Nth(usize, Box<Ttype>),
 }
+
 impl Ttype {
     pub fn is_var(&self) -> bool {
         matches!(self, Ttype::Var(_))
@@ -41,6 +46,34 @@ impl Ttype {
 
     pub fn is_fn(&self) -> bool {
         matches!(self, Ttype::Fn(_))
+    }
+    pub fn is_generic(&self) -> bool {
+        match self {
+            Ttype::Fn(ts) | Ttype::Tuple(ts) => {
+                let mut gen = false;
+                for t in ts {
+                    if t.is_generic() {
+                        gen = true;
+                        break;
+                    }
+                }
+                gen
+            }
+
+            Ttype::Array(ts) => ts.is_generic(),
+            _ => self.is_var(),
+        }
+    }
+    pub fn transform_generic(&self, substitutions: Vec<Ttype>) -> Self {
+        match self {
+            Ttype::Fn(gen_ts) => {
+                let map: HashMap<String, Ttype> = HashMap::new();
+                let transformed: Vec<Ttype> = vec![];
+                for specific in substitutions {}
+                Ttype::Fn(gen_ts.to_vec())
+            }
+            _ => self.clone(),
+        }
     }
 }
 

@@ -59,6 +59,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             None
         }
     }
+
+    pub fn codegen_generic_fn(
+        &mut self,
+        name: &str,
+        params: &Vec<Ast>,
+        body: Vec<Ast>,
+        ttype: Ttype,
+    ) -> Option<FunctionValue<'ctx>> {
+        None
+    }
+
     pub fn codegen_fn(
         &mut self,
         name: &str,
