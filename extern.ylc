@@ -1,7 +1,6 @@
 #let printf = fn (fmt: str, ...): int
 #printf("hello {}")
 
-let putchard = fn (x: double): double
-putchard(1.2312)
-
+let printf = fn (fmt: str): int 
+printf("hello")
 
