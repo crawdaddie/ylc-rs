@@ -100,6 +100,13 @@ impl Ttype {
             _ => self.clone(),
         }
     }
+
+    pub fn fn_return(&self) -> Option<Self> {
+        match self {
+            Ttype::Fn(gen_ts) => gen_ts.last().cloned(),
+            _ => None,
+        }
+    }
     pub fn mangle_name(&self) -> String {
         match self {
             Ttype::Fn(types) => {

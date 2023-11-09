@@ -118,6 +118,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .array_type(s.len() as u32)
                 .fn_type(&[], false),
             (_, Ast::Call(callable, args, app_type)) => {
+                // JANKY
                 if let (
                     Ast::Id(callable_id, fn_type),
                     Ttype::Application(_, application_types, _),
