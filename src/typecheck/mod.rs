@@ -17,6 +17,19 @@ fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
         }
     }
 }
+fn update_callable(ast: &mut Ast, params: &mut Vec<Ast>) {
+    match ast {
+        Ast::Id(callable, ttype) if ttype.is_generic() => {
+            println!(
+                "update generic callable {:?} {:?} {:?}",
+                callable, ttype, params
+            );
+            *ttype =
+                ttype.transform_generic(params.iter().map(|p| p.get_ttype().unwrap()).collect())
+        }
+        _ => {}
+    }
+}
 
 fn update_types(ast: &mut Ast, subs: &Substitutions) {
     match ast {
@@ -87,6 +100,9 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
             for a in params_vec {
                 update_types(a, subs);
             }
+            // update_callable(&mut *callee_box, params_vec);
+            // println!("update {:?} {:?}", callee_box, ttype);
+            // if let Ast::Id(callable, ttype) = *callee_box {}
         }
         _ => (),
     }

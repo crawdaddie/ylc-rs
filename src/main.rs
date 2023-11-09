@@ -79,15 +79,15 @@ fn compile<'ctx, 'a>(
             .unwrap();
         let name = main_fn.get_name().to_str().unwrap().to_string();
 
-        // let final_type = main_fn.get_type().get_return_type();
-        // let final_type = program.last().unwrap().get_ttype();
+        let ret_type = main_fn.get_type().get_return_type();
+        println!("main ret type {:?}", ret_type);
         match ret_type {
-            AnyTypeEnum::IntType(i) => unsafe {
+            Some(BasicTypeEnum::IntType(i)) => unsafe {
                 println!("{:?}", i);
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
-            AnyTypeEnum::FloatType(f) => unsafe {
+            Some(BasicTypeEnum::FloatType(f)) => unsafe {
                 println!("float type {:?} {:?}", f, name);
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
@@ -97,7 +97,7 @@ fn compile<'ctx, 'a>(
             //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
             //     println!("=> {:?}", compiled_fn.unwrap().call());
             // },
-            AnyTypeEnum::ArrayType(_) => unsafe {
+            Some(BasicTypeEnum::ArrayType(_)) => unsafe {
                 let compiled_fn =
                     ee.get_function::<unsafe extern "C" fn() -> Vec<i8>>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
@@ -107,7 +107,7 @@ fn compile<'ctx, 'a>(
             //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
             //     println!("=> {:?}", compiled_fn.unwrap().call());
             // },
-            AnyTypeEnum::VoidType(_) => unsafe {
+            _ => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> ()>(name.as_str());
                 compiled_fn.unwrap().call();
             },

@@ -1,8 +1,10 @@
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
-use inkwell::values::{AnyValue, AnyValueEnum, BasicValueEnum, FunctionValue};
+use inkwell::values::{
+    AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum, FunctionValue,
+};
 use inkwell::IntPredicate;
 
-use super::{Compiler, GenericFns};
+use super::{to_basic_value_enum, Compiler, GenericFns};
 
 use crate::parser::{Ast, Program};
 use crate::symbols::{Env, Numeric, Symbol, Ttype};
@@ -161,5 +163,28 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.builder.position_at_end(previous_block);
         Some(function)
+    }
+
+    pub fn compile_call(
+        &mut self,
+        callable_fn: FunctionValue<'ctx>,
+        args: &Vec<Ast>,
+    ) -> Option<AnyValueEnum<'ctx>> {
+        let compiled_args: Vec<BasicValueEnum> = args
+            .iter()
+            .map(|a| to_basic_value_enum(self.codegen(a).unwrap()))
+            .collect();
+
+        let argsv: Vec<BasicMetadataValueEnum> = compiled_args
+            .iter()
+            .by_ref()
+            .map(|&val| val.into())
+            .collect();
+
+        Some(
+            self.builder
+                .build_call(callable_fn, argsv.as_slice(), "call")
+                .as_any_value_enum(),
+        )
     }
 }

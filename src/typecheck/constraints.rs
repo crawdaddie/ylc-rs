@@ -301,6 +301,7 @@ impl ConstraintGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::symbols::{tint, tvar};
     use crate::{binop_expr, bool_expr, call_expr, id_expr, if_expr, int_expr, tuple_expr};
     use pretty_assertions::assert_eq;
     use std::collections::HashSet;
@@ -549,6 +550,26 @@ mod tests {
             ],
             cg.constraints,
         )
+    }
+    #[ignore]
+    #[test]
+    fn test_call_generic() {
+        let mut cg = ConstraintGenerator::new();
+        let generic_fn_type = Ttype::Fn(vec![
+            tvar("t0"),
+            Ttype::MaxNumeric(Box::new(tvar("t0")), Box::new(tint())),
+        ]);
+        cg.env.bind_symbol(
+            "f".into(),
+            TypecheckSymbol::Function(generic_fn_type.clone()),
+        );
+        cg.generate_constraints(&call_expr!(
+            id_expr!("f", tvar("fn_ref")),
+            vec![int_expr!(1)],
+            tvar("call_expr")
+        ));
+        println!("constraints {:?}", cg.constraints);
+        assert!(false)
     }
 
     #[ignore]
