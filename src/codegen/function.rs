@@ -125,8 +125,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.fn_stack.push(function);
         self.env.push();
 
+        let fn_types = if let Ttype::Fn(fn_types) = ttype {
+            fn_types
+        } else {
+            panic!();
+        };
+
         for (idx, p) in params.iter().enumerate() {
-            if let Ast::Id(p, ttype) = p {
+            if let Ast::Id(p, _) = p {
+                let ttype = &fn_types[idx];
                 self.env.bind_symbol(
                     p.clone(),
                     Symbol::FnParam(u32::try_from(idx).unwrap(), ttype.clone()),
