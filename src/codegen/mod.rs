@@ -1,7 +1,7 @@
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Numeric, Symbol, Ttype};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 mod conditional;
 mod function;
@@ -20,9 +20,9 @@ use inkwell::values::{
 use inkwell::AddressSpace;
 
 #[derive(Debug)]
-struct GenericFns<'ctx> {
+pub struct GenericFns {
     ast: Ast,
-    impls: HashMap<Ttype, FunctionValue<'ctx>>,
+    impls: HashSet<Ttype>,
 }
 
 pub struct Compiler<'a, 'ctx> {
@@ -31,7 +31,7 @@ pub struct Compiler<'a, 'ctx> {
     pub fpm: &'a PassManager<FunctionValue<'ctx>>,
     pub module: &'a Module<'ctx>,
     env: Env<Symbol>,
-    generic_fns: HashMap<String, GenericFns<'ctx>>,
+    generic_fns: HashMap<String, GenericFns>,
     fn_stack: Vec<FunctionValue<'ctx>>,
 }
 
@@ -88,45 +88,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    #[inline]
-    fn get_function(&self, name: &str) -> Option<FunctionValue<'ctx>> {
-        self.module.get_function(name)
-    }
-
-    #[inline]
-    fn get_generic_function(
-        &self,
-        callable: &Ast,
-        arg_types: Ttype,
-    ) -> Option<FunctionValue<'ctx>> {
-        if let Ast::Id(callable_id, fn_type) = callable {
-            let gen_fns = self.generic_fns.get(callable_id);
-            println!(
-                "gen fns {:?} {:?} {:?}\ntransform: {:?}",
-                gen_fns,
-                fn_type,
-                arg_types,
-                fn_type.transform_generic(vec![])
-            );
-            None
-        } else {
-            None
-        }
-    }
-
-    fn current_fn(&self) -> Option<&FunctionValue<'ctx>> {
-        self.fn_stack.last()
-    }
-
-    fn push_fn_stack(&mut self, function: &FunctionValue<'ctx>) {
-        self.env.push();
-        self.fn_stack.push(*function);
-    }
-
-    fn pop_fn_stack(&mut self) {
-        self.env.pop();
-        self.fn_stack.pop();
-    }
     fn type_to_llvm_fn(&self, ttype: Ttype) -> FunctionType<'ctx> {
         match ttype {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
@@ -287,8 +248,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
                 Ast::Fn(params, return_type, body, fn_type) if fn_type.is_generic() => {
-                    println!("codegen generic fn {:?} {:?}", fn_type, body);
                     self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
+                    self.generic_fns.insert(
+                        id.clone(),
+                        GenericFns {
+                            ast: (**fn_expr).clone(),
+                            impls: HashSet::new(),
+                        },
+                    );
                     None
                 }
                 Ast::Fn(params, return_type, body, fn_type) => {
@@ -357,16 +324,39 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _ret_type, _body, _ttype) => None,
-            Ast::Call(callable, args, arg_types) => {
+            Ast::Call(callable, args, application_types) => {
                 let callable_type = callable.get_ttype().unwrap();
-                let fn_value_enum;
+                let mut fn_value;
                 if callable_type.is_generic() {
-                    fn_value_enum = self.get_generic_function(callable, arg_types.clone());
+                    if let (
+                        Ast::Id(callable_id, fn_type),
+                        Ttype::Application(_, application_types, _),
+                    ) = ((**callable).clone(), application_types)
+                    {
+                        let fn_type = fn_type.transform_generic(application_types.to_vec());
+
+                        fn_value = self.get_generic_function(callable_id.as_str(), fn_type.clone());
+                        if fn_value.is_none() {
+                            let g = self.get_generic(callable_id.as_str());
+                            if let Ast::Fn(params, return_type, body, _) = g.ast.clone() {
+                                fn_value = self.codegen_fn(
+                                    format!("{}_{:?}", callable_id, fn_type.clone()).as_str(),
+                                    &params,
+                                    return_type,
+                                    body,
+                                    fn_type.clone(),
+                                );
+                                self.add_generic_function(callable_id.as_str(), fn_type);
+                            };
+                        }
+                    } else {
+                        panic!();
+                    }
                 } else {
-                    fn_value_enum = self.codegen(&callable).map(|v| v.into_function_value());
+                    fn_value = self.codegen(&callable).map(|v| v.into_function_value());
                 }
 
-                if let Some(callable_fn) = fn_value_enum {
+                if let Some(callable_fn) = fn_value {
                     // callable is an AnyValue enum
                     let compiled_args: Vec<BasicValueEnum> = args
                         .iter()

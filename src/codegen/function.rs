@@ -2,7 +2,7 @@ use inkwell::types::{BasicMetadataTypeEnum, BasicType};
 use inkwell::values::{AnyValue, AnyValueEnum, BasicValueEnum, FunctionValue};
 use inkwell::IntPredicate;
 
-use super::Compiler;
+use super::{Compiler, GenericFns};
 
 use crate::parser::{Ast, Program};
 use crate::symbols::{Env, Numeric, Symbol, Ttype};
@@ -12,6 +12,50 @@ fn is_num(n: Numeric) -> bool {
 }
 
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
+    #[inline]
+    pub fn get_function(&self, name: &str) -> Option<FunctionValue<'ctx>> {
+        self.module.get_function(name)
+    }
+
+    pub fn get_generic(&mut self, name: &str) -> &mut GenericFns {
+        self.generic_fns.get_mut(name).unwrap()
+    }
+
+    pub fn get_generic_function(
+        &mut self,
+        id: &str,
+        fn_types: Ttype,
+    ) -> Option<FunctionValue<'ctx>> {
+        let gf_exists = self
+            .generic_fns
+            .get(id)
+            .map_or(false, |g| g.impls.contains(&fn_types));
+
+        if gf_exists {
+            self.get_function(format!("{}_{:?}", id, fn_types).as_str())
+        } else {
+            None
+        }
+    }
+
+    pub fn add_generic_function(&mut self, id: &str, fn_types: Ttype) {
+        let mut gf = self.generic_fns.get_mut(id).unwrap();
+        gf.impls.insert(fn_types);
+    }
+
+    pub fn current_fn(&self) -> Option<&FunctionValue<'ctx>> {
+        self.fn_stack.last()
+    }
+
+    pub fn push_fn_stack(&mut self, function: &FunctionValue<'ctx>) {
+        self.env.push();
+        self.fn_stack.push(*function);
+    }
+
+    pub fn pop_fn_stack(&mut self) {
+        self.env.pop();
+        self.fn_stack.pop();
+    }
     pub fn codegen_fn_proto(
         &mut self,
         name: &str,
@@ -60,16 +104,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    pub fn codegen_generic_fn(
-        &mut self,
-        name: &str,
-        params: &Vec<Ast>,
-        body: Vec<Ast>,
-        ttype: Ttype,
-    ) -> Option<FunctionValue<'ctx>> {
-        None
-    }
-
     pub fn codegen_fn(
         &mut self,
         name: &str,
@@ -78,7 +112,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         body: Vec<Ast>,
         ttype: Ttype,
     ) -> Option<FunctionValue<'ctx>> {
-        let function = self.codegen_fn_proto(name, params, ttype).unwrap();
+        let function = self.codegen_fn_proto(name, params, ttype.clone()).unwrap();
         if body.is_empty() {
             // extern fn
             return Some(function);

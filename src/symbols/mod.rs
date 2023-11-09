@@ -64,13 +64,38 @@ impl Ttype {
             _ => self.is_var(),
         }
     }
-    pub fn transform_generic(&self, substitutions: Vec<Ttype>) -> Self {
+    pub fn substitute(&self, mem: &Ttype, sub: &Ttype) -> Self {
+        match self {
+            Ttype::Fn(t) => {
+                let tt = t.iter().map(|v| v.substitute(mem, sub)).collect();
+                Ttype::Fn(tt)
+            }
+
+            Ttype::Tuple(t) => {
+                let tt = t.iter().map(|v| v.substitute(mem, sub)).collect();
+                Ttype::Tuple(tt)
+            }
+
+            Ttype::MaxNumeric(t1, t2) => {
+                max_numeric_type(t1.substitute(mem, sub), t2.substitute(mem, sub)).unwrap()
+            }
+            Ttype::Array(t) => Ttype::Array(Box::new(t.substitute(mem, sub))),
+            Ttype::Var(_) if self == mem => sub.clone(),
+            _ => self.clone(),
+        }
+    }
+    pub fn transform_generic(&self, application_types: Vec<Ttype>) -> Self {
+        let mut t = self.clone();
         match self {
             Ttype::Fn(gen_ts) => {
-                let map: HashMap<String, Ttype> = HashMap::new();
-                let transformed: Vec<Ttype> = vec![];
-                for specific in substitutions {}
-                Ttype::Fn(gen_ts.to_vec())
+                let mut map: HashMap<&Ttype, &Ttype> = HashMap::new();
+                let mut transformed: Vec<Ttype> = vec![];
+                for (member, app) in gen_ts.iter().zip(application_types) {
+                    if member.is_var() {
+                        t = t.substitute(&member, &app);
+                    }
+                }
+                t
             }
             _ => self.clone(),
         }
@@ -245,5 +270,45 @@ pub fn max_numeric_type(l: Ttype, r: Ttype) -> Option<Ttype> {
         },
         (Ttype::Var(_), Ttype::Var(_)) => Some(Ttype::MaxNumeric(Box::new(l), Box::new(r))),
         _ => None,
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn generic_type_transformation() {
+        let generic_fn_type = Ttype::Fn(vec![
+            tvar("t0"),
+            Ttype::MaxNumeric(Box::new(tvar("t0")), Box::new(tint())),
+        ]);
+        let application_types = vec![tint()];
+
+        assert_eq!(
+            generic_fn_type.transform_generic(application_types),
+            Ttype::Fn(vec![tint(), tint(),])
+        );
+    }
+
+    #[test]
+    fn generic_type_transformation_more_complex() {
+        let generic_fn_type = Ttype::Fn(vec![
+            tvar("t0"),
+            tvar("t1"),
+            Ttype::Tuple(vec![
+                tvar("t0"),
+                tint(),
+                Ttype::Tuple(vec![tint(), tvar("t1")]),
+            ]),
+        ]);
+        let application_types = vec![tint(), tnum()];
+
+        assert_eq!(
+            generic_fn_type.transform_generic(application_types),
+            Ttype::Fn(vec![
+                tint(),
+                tnum(),
+                Ttype::Tuple(vec![tint(), tint(), Ttype::Tuple(vec![tint(), tnum()]),]),
+            ])
+        );
     }
 }
