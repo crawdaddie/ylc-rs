@@ -1,55 +1,8 @@
-use crate::lexer;
-use crate::symbols::{Numeric, Ttype};
-use lexer::{Lexer, Token};
-#[derive(PartialEq, PartialOrd, Debug, Clone)]
-pub enum Precedence {
-    None,
-    Assignment, // =
-    Or,         // or
-    And,        // and
-    Equality,   // == !=
-    Comparison, // < > <= >=
-    Pipe,       // ->
-    Term,       // + -
-    Factor,     // * /
-    Unary,      // ! -
-    Call,       // . ()
-    Index,      // []
-    Primary,
-}
+use crate::{
+    lexer::{Lexer, Token},
+    symbols::{Numeric, Ttype},
+};
 
-pub type Identifier = String;
-#[derive(Debug, Clone)]
-pub enum Ast {
-    Let(
-        Identifier,
-        Option<Box<Ast>>, // optional explicit type parameter
-        //
-        Option<Box<Ast>>, // optional immediate assignment expression
-    ),
-    FnDeclaration(Identifier, Box<Ast>),
-    TypeDeclaration(Identifier, Box<Ast>),
-
-    //expressions
-    Id(Identifier, Ttype),
-    Binop(Token, Box<Ast>, Box<Ast>, Ttype),
-    Unop(Token, Box<Ast>, Ttype),
-    Tuple(Vec<Ast>, Ttype),
-    Index(Box<Ast>, Box<Ast>, Ttype),
-    Assignment(Box<Ast>, Box<Ast>, Ttype),
-    Fn(Vec<Ast>, Option<Ttype>, Vec<Ast>, Ttype),
-    Call(Box<Ast>, Vec<Ast>, Ttype),
-    Body(Vec<Ast>, Ttype),
-    If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
-    VarArg,
-
-    // literals
-    Int8(i8),
-    Integer(i64),
-    Number(f64),
-    Bool(bool),
-    String(String),
-}
 pub static mut TVAR_COUNT: usize = 0;
 
 fn tvar() -> Ttype {
@@ -60,174 +13,6 @@ fn tvar() -> Ttype {
     };
     tv
 }
-// Ast node match template
-// match ast {
-//     Ast::Let(
-//         id,
-//         t,     // optional explicit type parameter
-//         value, // optional immediate assignment expression
-//     ) => {
-//     Ast::FnDeclaration(id, fn_expr) => {}
-//     Ast::TypeDeclaration(id, type_expr) => {}
-//
-//     Ast::Id(id, ttype) => {}
-//     Ast::Binop(token, left, right, ttype) => {}
-//     Ast::Unop(token, operand, ttype) => {}
-//     Ast::Tuple(exprs, ttype) => {}
-//     Ast::Index(obj, idx, ttype) => {}
-//     Ast::Assignment(assignee, val, ttype) => {}
-//     Ast::Fn(params, ret_type, body, ttype) => {}
-//     Ast::Call(callable, args, ttype) => {}
-//     Ast::Body(stmts, ttype) => {}
-//     Ast::If(cond, then, elze, ttype) => {}
-//
-//     Ast::Int8(i) => {}
-//     Ast::Integer(i) => {}
-//     Ast::Number(f) => {}
-//     Ast::Bool(b) => {}
-//     Ast::String(s) => {}
-// }
-
-impl Ast {
-    pub fn get_ttype(&self) -> Option<Ttype> {
-        match self {
-            Ast::Id(_, t)
-            | Ast::Binop(_, _, _, t)
-            | Ast::Unop(_, _, t)
-            | Ast::Tuple(_, t)
-            | Ast::Index(_, _, t)
-            | Ast::Assignment(_, _, t)
-            | Ast::Fn(_, _, _, t)
-            | Ast::Body(_, t)
-            | Ast::Call(_, _, t)
-            | Ast::If(_, _, _, t) => Some(t.clone()),
-
-            Ast::Let(
-                _,
-                _,       // optional explicit type parameter
-                Some(v), // optional immediate assignment expression
-            ) => v.get_ttype(),
-            Ast::FnDeclaration(_, fn_expr) => fn_expr.get_ttype(),
-
-            // literals
-            Ast::Int8(_) => Some(Ttype::Numeric(Numeric::Int8)),
-            Ast::Integer(_) => Some(Ttype::Numeric(Numeric::Int)),
-            Ast::Number(_) => Some(Ttype::Numeric(Numeric::Num)),
-            Ast::Bool(_) => Some(Ttype::Bool),
-            Ast::String(_) => Some(Ttype::Str),
-            _ => None,
-        }
-    }
-
-    pub fn set_ttype(&mut self, t: Ttype) {
-        match self {
-            Ast::Id(_, ref mut ttype)
-            | Ast::Binop(_, _, _, ref mut ttype)
-            | Ast::Unop(_, _, ref mut ttype)
-            | Ast::Tuple(_, ref mut ttype)
-            | Ast::Index(_, _, ref mut ttype)
-            | Ast::Assignment(_, _, ref mut ttype)
-            | Ast::Fn(_, _, _, ref mut ttype)
-            | Ast::Body(_, ref mut ttype)
-            | Ast::Call(_, _, ref mut ttype)
-            | Ast::If(_, _, _, ref mut ttype) => {
-                if let Ttype::Var(_n) = ttype {
-                    // if n.is_empty() {
-                    *ttype = t
-                    // }
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-/// implement PartialEq for Ast to ignore ttype Tvar names
-impl PartialEq for Ast {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Ast::Let(id1, t1, e1), Ast::Let(id2, t2, e2)) => id1 == id2 && t1 == t2 && e1 == e2,
-            (Ast::FnDeclaration(id1, e1), Ast::FnDeclaration(id2, e2)) => id1 == id2 && e1 == e2,
-            (Ast::TypeDeclaration(id1, e1), Ast::TypeDeclaration(id2, e2)) => {
-                id1 == id2 && e1 == e2
-            }
-            (Ast::Id(id1, _), Ast::Id(id2, _)) => id1 == id2,
-            (Ast::Binop(t1, e1, e2, _), Ast::Binop(t2, e3, e4, _)) => {
-                t1 == t2 && e1 == e3 && e2 == e4
-            }
-            (Ast::Unop(t1, e1, _), Ast::Unop(t2, e2, _)) => t1 == t2 && e1 == e2,
-            (Ast::Tuple(v1, _), Ast::Tuple(v2, _)) => v1 == v2,
-            (Ast::Index(e1, e2, _), Ast::Index(e3, e4, _)) => e1 == e3 && e2 == e4,
-            (Ast::Assignment(e1, e2, _), Ast::Assignment(e3, e4, _)) => e1 == e3 && e2 == e4,
-            (Ast::Fn(v1, t1, v2, _), Ast::Fn(v3, t2, v4, _)) => v1 == v3 && t1 == t2 && v2 == v4,
-            (Ast::Call(e1, v1, _), Ast::Call(e2, v2, _)) => e1 == e2 && v1 == v2,
-            (Ast::Body(v1, _), Ast::Body(v2, _)) => v1 == v2,
-            (Ast::If(e1, v1, t1, _), Ast::If(e2, v2, t2, _)) => e1 == e2 && v1 == v2 && t1 == t2,
-            (Ast::Int8(i1), Ast::Int8(i2)) => i1 == i2,
-            (Ast::Integer(i1), Ast::Integer(i2)) => i1 == i2,
-            (Ast::Number(n1), Ast::Number(n2)) => n1 == n2,
-            (Ast::Bool(b1), Ast::Bool(b2)) => b1 == b2,
-            (Ast::String(s1), Ast::String(s2)) => s1 == s2,
-            _ => false,
-        }
-    }
-}
-pub fn print_ast(ast: Ast, indent: usize) {
-    // TODO: finish this crappy function
-    let ident = format!("{: ^1$}", "", indent);
-    print!("{}", ident);
-    match ast {
-        Ast::Let(
-            _id,
-            _type_param, // optional explicit type parameter
-            _assignment, // optional immediate assignment expression
-        ) => {}
-        Ast::FnDeclaration(id, fn_expr) => {
-            print!("fn {} ", id);
-            print_ast(*fn_expr, indent);
-        }
-        Ast::TypeDeclaration(_id, _type_expr) => {}
-
-        //expressions
-        // Ast::Id(id, Some(t), _ttype) => {
-        //     print!("{} {:?}, ", id, *t);
-        // }
-        Ast::Id(id, _ttype) => {
-            print!("{}, ", id);
-        }
-        Ast::Binop(_token, _l, _r, _ttype) => {}
-        Ast::Unop(_token, _operand, _ttype) => {}
-        Ast::Tuple(_exprs, _ttype) => {}
-        Ast::Index(_obj, _idx, _ttype) => {}
-        Ast::Assignment(_id, _val, _ttype) => {}
-        Ast::Fn(params, ret, body, _ttype) => {
-            for p in params {
-                print_ast(p, 0);
-            }
-            if let Some(ret) = ret {
-                print!("{:?}", ret);
-            }
-            println!();
-            for s in body {
-                print_ast(s, indent + 1);
-            }
-        }
-        Ast::Call(_callable, _args, _ttype) => {}
-        Ast::Body(_stmts, _ttype) => {}
-        Ast::If(_cond, _then, _elze, _ttype) => {}
-
-        // literals
-        Ast::Int8(_v) => {}
-        Ast::Integer(_v) => {}
-        Ast::Number(_v) => {}
-        Ast::Bool(_v) => {}
-        Ast::String(_v) => {}
-        Ast::VarArg => {}
-    }
-}
-
-pub type Block = Vec<Ast>;
-pub type Program = Block;
 
 #[macro_export]
 macro_rules! int_expr {
@@ -328,7 +113,154 @@ macro_rules! call_expr {
     };
 }
 
-pub struct Parser {
+#[derive(PartialEq, PartialOrd, Debug, Clone)]
+pub enum Precedence {
+    None,
+    Assignment, // =
+    Or,         // or
+    And,        // and
+    Equality,   // == !=
+    Comparison, // < > <= >=
+    Pipe,       // ->
+    Term,       // + -
+    Factor,     // * /
+    Unary,      // ! -
+    Call,       // . ()
+    Index,      // []
+    Primary,
+}
+
+pub type Identifier = String;
+#[derive(Debug, Clone)]
+pub enum Ast {
+    Let(
+        Identifier,
+        Option<Ttype>, // optional explicit type parameter
+        //
+        Option<Box<Ast>>, // optional immediate assignment expression
+    ),
+    FnDeclaration(Identifier, Box<Ast>),
+    TypeDeclaration(Identifier, Box<Ast>),
+
+    //expressions
+    Id(Identifier, Ttype),
+    Binop(Token, Box<Ast>, Box<Ast>, Ttype),
+    Unop(Token, Box<Ast>, Ttype),
+    Tuple(Vec<Ast>, Ttype),
+    Index(Box<Ast>, Box<Ast>, Ttype),
+    Assignment(Box<Ast>, Box<Ast>, Ttype),
+    Fn(Vec<Ast>, Vec<Ast>, Ttype),
+    Call(Box<Ast>, Vec<Ast>, Ttype),
+    Body(Vec<Ast>, Ttype),
+    If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
+    VarArg,
+
+    // literals
+    Int8(i8),
+    Integer(i64),
+    Number(f64),
+    Bool(bool),
+    String(String),
+}
+
+impl Ast {
+    pub fn ttype(&self) -> Ttype {
+        match self {
+            Ast::Let(
+                id,
+                t,           // optional explicit type parameter
+                Some(value), // optional immediate assignment expression
+            ) => value.ttype(),
+
+            Ast::Let(
+                _,
+                t,    // optional explicit type parameter
+                None, // optional immediate assignment expression
+            ) => t.clone().unwrap(),
+
+            Ast::FnDeclaration(id, fn_expr) => fn_expr.ttype(),
+            Ast::TypeDeclaration(id, type_expr) => type_expr.ttype(),
+
+            Ast::Id(_, t)
+            | Ast::Binop(_, _, _, t)
+            | Ast::Unop(_, _, t)
+            | Ast::Tuple(_, t)
+            | Ast::Index(_, _, t)
+            | Ast::Assignment(_, _, t)
+            | Ast::Fn(_, _, t)
+            | Ast::Call(_, _, t)
+            | Ast::Body(_, t)
+            | Ast::If(_, _, _, t) => t.clone(),
+
+            Ast::Int8(i) => Ttype::Numeric(Numeric::Int8),
+            Ast::Integer(i) => Ttype::Numeric(Numeric::Int),
+            Ast::Number(f) => Ttype::Numeric(Numeric::Num),
+            Ast::Bool(b) => Ttype::Bool,
+            Ast::String(s) => Ttype::Str,
+            Ast::VarArg => Ttype::Tuple(vec![]),
+        }
+    }
+}
+
+impl PartialEq for Ast {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Ast::Let(id1, t1, e1), Ast::Let(id2, t2, e2)) => id1 == id2 && e1 == e2,
+            (Ast::FnDeclaration(id1, e1), Ast::FnDeclaration(id2, e2)) => id1 == id2 && e1 == e2,
+            (Ast::TypeDeclaration(id1, e1), Ast::TypeDeclaration(id2, e2)) => {
+                id1 == id2 && e1 == e2
+            }
+            (Ast::Id(id1, _), Ast::Id(id2, _)) => id1 == id2,
+            (Ast::Binop(t1, e1, e2, _), Ast::Binop(t2, e3, e4, _)) => {
+                t1 == t2 && e1 == e3 && e2 == e4
+            }
+            (Ast::Unop(t1, e1, _), Ast::Unop(t2, e2, _)) => t1 == t2 && e1 == e2,
+            (Ast::Tuple(v1, _), Ast::Tuple(v2, _)) => v1 == v2,
+            (Ast::Index(e1, e2, _), Ast::Index(e3, e4, _)) => e1 == e3 && e2 == e4,
+            (Ast::Assignment(e1, e2, _), Ast::Assignment(e3, e4, _)) => e1 == e3 && e2 == e4,
+            (Ast::Fn(v1, v2, _), Ast::Fn(v3, v4, _)) => v1 == v3 && v2 == v4,
+            (Ast::Call(e1, v1, _), Ast::Call(e2, v2, _)) => e1 == e2 && v1 == v2,
+            (Ast::Body(v1, _), Ast::Body(v2, _)) => v1 == v2,
+            (Ast::If(e1, v1, t1, _), Ast::If(e2, v2, t2, _)) => e1 == e2 && v1 == v2 && t1 == t2,
+            (Ast::Int8(i1), Ast::Int8(i2)) => i1 == i2,
+            (Ast::Integer(i1), Ast::Integer(i2)) => i1 == i2,
+            (Ast::Number(n1), Ast::Number(n2)) => n1 == n2,
+            (Ast::Bool(b1), Ast::Bool(b2)) => b1 == b2,
+            (Ast::String(s1), Ast::String(s2)) => s1 == s2,
+            _ => false,
+        }
+    }
+}
+
+fn identifier_to_type(id: Identifier) -> Ttype {
+    match id.as_str() {
+        "int8" => Ttype::Numeric(Numeric::Int8),
+        "int" => Ttype::Numeric(Numeric::Int),
+        "double" => Ttype::Numeric(Numeric::Num),
+        "bool" => Ttype::Bool,
+        "str" => Ttype::Str,
+        s => Ttype::Var(s.into()),
+        _ => tvar(),
+    }
+}
+fn token_to_precedence(tok: &Token) -> Precedence {
+    match tok {
+        Token::Assignment => Precedence::Assignment,
+        Token::Equality | Token::NotEqual => Precedence::Equality,
+        Token::Lt | Token::Lte | Token::Gt | Token::Gte => Precedence::Comparison,
+        Token::Plus | Token::Minus => Precedence::Term,
+        Token::Slash | Token::Star | Token::Modulo => Precedence::Factor,
+        Token::LeftSq => Precedence::Index,
+        Token::Lp | Token::Rp | Token::Dot => Precedence::Call,
+        Token::Bang => Precedence::Unary,
+        Token::LogicalOr => Precedence::Or,
+        Token::LogicalAnd => Precedence::And,
+        _ => Precedence::None,
+    }
+}
+
+pub type Program = Vec<Ast>;
+struct Parser {
     lexer: Lexer,
     previous: Token,
     current: Token,
@@ -343,6 +275,11 @@ impl Parser {
             current,
         }
     }
+
+    fn advance(&mut self) {
+        self.previous = self.current.clone();
+        self.current = self.lexer.scan_token()
+    }
     pub fn parse_program(&mut self) -> Program {
         let mut program: Program = vec![];
         while self.current != Token::Eof {
@@ -351,242 +288,7 @@ impl Parser {
                 None => self.advance(),
             }
         }
-
         program
-    }
-    fn advance(&mut self) {
-        self.previous = self.current.clone();
-        self.current = self.lexer.scan_token()
-    }
-
-    fn parse_statement(&mut self) -> Option<Ast> {
-        match &self.current {
-            Token::Let => self.parse_let_statement(),
-            // Token::Identifier(id) => self.parse_assignment_statement(id.clone()),
-            Token::Type => self.parse_type_declaration(),
-            // Token::Nl => None,
-            _ => self.parse_expression(Precedence::None),
-        }
-    }
-
-    fn parse_assignment_expression(&mut self, id: Option<Ast>) -> Option<Ast> {
-        self.advance();
-
-        id.as_ref()?;
-
-        self.parse_expression(Precedence::None)
-            .map(|e| assignment_expr!(id.unwrap(), e))
-    }
-
-    fn parse_typed_identifier(&mut self) -> Option<(Identifier, Option<Identifier>)> {
-        let id = self.parse_identifier();
-        let type_param = if self.expect_token(Token::Colon) {
-            let tok = self.current.clone();
-            match &tok {
-                Token::Identifier(t) => {
-                    self.advance();
-                    Some(t.clone())
-                }
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        id.map(|id| (id, type_param))
-    }
-
-    fn parse_let_statement(&mut self) -> Option<Ast> {
-        self.advance();
-        let id = self.parse_identifier();
-        let type_param = if self.expect_token(Token::Colon) {
-            self.parse_type_expression()
-        } else {
-            None
-        };
-
-        if self.expect_token(Token::Assignment) {
-            match self.current {
-                Token::Extern => {
-                    self.advance();
-                    if self.expect_token(Token::Fn) {
-                        Some(Ast::FnDeclaration(
-                            id.unwrap(),
-                            Box::new(self.parse_fn_expression()?),
-                        ))
-                    } else {
-                        None
-                    }
-                }
-                Token::Fn => Some(Ast::FnDeclaration(
-                    id.unwrap(),
-                    Box::new(self.parse_fn_expression().unwrap()),
-                )),
-
-                _ => Some(Ast::Let(
-                    id.unwrap(),
-                    type_param.map(|t| Box::new(t)),
-                    Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
-                )),
-            }
-        } else {
-            Some(Ast::Let(id.unwrap(), type_param.map(|t| Box::new(t)), None))
-        }
-    }
-
-    fn parse_identifier(&mut self) -> Option<Identifier> {
-        let id = match self.current {
-            Token::Identifier(ref mut ident) => Some(ident.clone()),
-            _ => return None,
-        };
-        self.advance();
-        id
-    }
-
-    fn parse_type_declaration(&mut self) -> Option<Ast> {
-        None
-    }
-    fn token_to_precedence(&self, tok: &Token) -> Precedence {
-        match tok {
-            Token::Assignment => Precedence::Assignment,
-            Token::Equality | Token::NotEqual => Precedence::Equality,
-            Token::Lt | Token::Lte | Token::Gt | Token::Gte => Precedence::Comparison,
-            Token::Plus | Token::Minus => Precedence::Term,
-            Token::Slash | Token::Star | Token::Modulo => Precedence::Factor,
-            Token::LeftSq => Precedence::Index,
-            Token::Lp | Token::Rp | Token::Dot => Precedence::Call,
-            Token::Bang => Precedence::Unary,
-            Token::LogicalOr => Precedence::Or,
-            Token::LogicalAnd => Precedence::And,
-            _ => Precedence::None,
-        }
-    }
-
-    fn parse_infix_expr(&mut self, left: Option<Ast>) -> Option<Ast> {
-        let tok = self.current.clone();
-        // println!("parse infix {:?} {:?}", left, tok);
-        let precedence = self.token_to_precedence(&tok);
-
-        self.advance();
-        left.as_ref()?;
-
-        self.parse_expression(precedence)
-            .map(|expr| binop_expr!(tok, left.unwrap(), expr))
-    }
-
-    fn parse_prefix_expr(&mut self) -> Option<Ast> {
-        let tok = self.current.clone();
-
-        let precedence = self.token_to_precedence(&tok);
-        self.advance();
-        self.parse_expression(precedence)
-            .map(|expr| unop_expr!(tok, expr))
-    }
-    fn parse_tuple(&mut self, first: Option<Ast>) -> Option<Ast> {
-        first.as_ref()?;
-
-        let mut exprs = vec![first.unwrap()];
-        self.advance();
-
-        while self.current != Token::Rp {
-            self.skip_token(Token::Comma);
-            if let Some(expr) = self.parse_expression(Precedence::None) {
-                exprs.push(expr);
-            }
-        }
-
-        Some(tuple_expr!(exprs))
-    }
-
-    fn parse_index_expr(&mut self, obj: Option<Ast>) -> Option<Ast> {
-        self.advance();
-        self.parse_expression(Precedence::None)
-            .map(|idx| Ast::Index(Box::new(obj.unwrap()), Box::new(idx), tvar()))
-    }
-
-    fn parse_grouping(&mut self) -> Option<Ast> {
-        self.advance();
-        let expr = self.parse_expression(Precedence::None);
-
-        match self.current {
-            Token::Rp => {
-                self.advance();
-                expr
-            }
-            Token::Comma => self.parse_tuple(expr),
-            _ => None,
-        }
-    }
-    fn skip_token(&mut self, tok: Token) {
-        if self.current == tok {
-            self.advance();
-        }
-    }
-    fn parse_type_expression(&mut self) -> Option<Ast> {
-        let tok = self.current.clone();
-        self.advance();
-        match &tok {
-            Token::Identifier(id) => Some(id_expr!(id)),
-            _ => None,
-        }
-    }
-
-    fn parse_fn_args(&mut self) -> Vec<Ast> {
-        let mut args = vec![];
-        self.advance();
-
-        while self.current != Token::Rp {
-            self.skip_token(Token::Comma);
-            if let Some((arg, arg_type)) = self.parse_typed_identifier() {
-                let t = match arg_type.as_deref() {
-                    Some("int8") => Ttype::Numeric(Numeric::Int8),
-                    Some("int") => Ttype::Numeric(Numeric::Int),
-                    Some("double") => Ttype::Numeric(Numeric::Num),
-                    Some("bool") => Ttype::Bool,
-                    Some("str") => Ttype::Str,
-                    Some(s) => Ttype::Var(s.into()),
-                    _ => tvar(),
-                };
-                args.push(Ast::Id(arg, t));
-            } else if self.current == Token::TripleDot {
-                println!("var arg?   {:?}", self.current);
-                self.advance();
-                args.push(Ast::VarArg)
-            }
-        }
-        self.advance(); // move past Rp
-
-        args
-    }
-
-    fn parse_fn_expression(&mut self) -> Option<Ast> {
-        self.advance();
-        if self.current != Token::Lp {
-            return None;
-        };
-        let args = self.parse_fn_args();
-
-        let return_type = if self.expect_token(Token::Colon) {
-            self.parse_identifier().map(|t| match t.as_str() {
-                "int8" => Ttype::Numeric(Numeric::Int8),
-                "int" => Ttype::Numeric(Numeric::Int),
-                "double" => Ttype::Numeric(Numeric::Num),
-                "bool" => Ttype::Bool,
-                "str" => Ttype::Str,
-                s => Ttype::Var(s.into()),
-                _ => tvar(),
-            })
-        } else {
-            None
-        };
-
-        let body = if self.current == Token::LeftBrace {
-            self.parse_body()
-        } else {
-            vec![]
-        };
-
-        Some(Ast::Fn(args, return_type, body, tvar()))
     }
 
     fn parse_body(&mut self) -> Vec<Ast> {
@@ -599,11 +301,177 @@ impl Parser {
         }
         body
     }
-    fn parse_conditional_expr(&mut self) -> Option<Ast> {
+    fn parse_statement(&mut self) -> Option<Ast> {
+        match &self.current {
+            Token::Let => self.parse_let(),
+            _ => self.parse_expression(Precedence::None),
+        }
+    }
+    fn parse_identifier(&mut self) -> Identifier {
+        let id = match &self.current {
+            Token::Identifier(id) => id.clone(),
+            _ => panic!(
+                "expected identifier at {line}:{col}",
+                line = self.lexer.line,
+                col = self.lexer.col
+            ),
+        };
+        self.advance();
+        id
+    }
+    fn parse_type_expression(&mut self) -> Option<Ttype> {
+        let _tok = self.current.clone();
+        self.advance();
+        // match &tok {
+        //     Token::Identifier(id) => Some(id_expr!(id)),
+        //     _ => None,
+        // }
+        None
+    }
+    fn parse_let(&mut self) -> Option<Ast> {
+        self.advance();
+        let id = self.parse_identifier();
+        let type_param = if self.expect_token(Token::Colon) {
+            self.parse_type_expression()
+        } else {
+            None
+        };
+        if self.expect_token(Token::Assignment) {
+            match self.current {
+                Token::Fn => Some(Ast::FnDeclaration(
+                    id,
+                    Box::new(self.parse_fn_expression()?),
+                )),
+                _ => Some(Ast::Let(
+                    id,
+                    type_param,
+                    Some(Box::new(self.parse_expression(Precedence::None).unwrap())),
+                )),
+            }
+        } else {
+            Some(Ast::Let(id, type_param, None))
+        }
+    }
+    fn parse_typed_identifier(&mut self) -> (Identifier, Option<Identifier>) {
+        let id = self.parse_identifier();
+
+        let type_param = if self.expect_token(Token::Colon) {
+            let tok = self.current.clone();
+            match &tok {
+                Token::Identifier(t) => {
+                    self.advance();
+                    Some(t.clone())
+                }
+                _ => panic!(
+                    "parse error: expected type identifier after : {}:{}",
+                    self.lexer.line, self.lexer.col
+                ),
+            }
+        } else {
+            None
+        };
+        (id, type_param)
+    }
+
+    fn parse_fn_params(&mut self) -> Vec<Ast> {
+        let mut params = vec![];
+        self.advance();
+        while self.current != Token::Rp {
+            self.skip_token(Token::Comma);
+            match self.current {
+                Token::Identifier(_) => match self.parse_typed_identifier() {
+                    (p, Some(p_type)) => {
+                        let t = identifier_to_type(p_type);
+                        params.push(Ast::Id(p, t));
+                    }
+                    (p, None) => params.push(Ast::Id(p, tvar())),
+                },
+                Token::TripleDot => params.push(Ast::VarArg),
+                _ => panic!(),
+            }
+        }
+        self.advance();
+        params
+    }
+
+    fn parse_fn_expression(&mut self) -> Option<Ast> {
+        self.advance();
+        if self.current != Token::Lp {
+            panic!(
+                "fn expression requires a signature after fn {}:{}",
+                self.lexer.line, self.lexer.col
+            );
+        }
+        let params = self.parse_fn_params();
+        let return_type = if self.expect_token(Token::Colon) {
+            let t = identifier_to_type(self.parse_identifier());
+            t
+        } else {
+            tvar()
+        };
+        let body = if self.current == Token::LeftBrace {
+            self.parse_body()
+        } else {
+            vec![]
+        };
+
+        let mut fn_type: Vec<Ttype> = params.iter().map(|x| x.ttype()).collect();
+        fn_type.push(return_type);
+
+        Some(Ast::Fn(params, body, Ttype::Fn(fn_type)))
+    }
+    fn parse_prefix_expression(&mut self) -> Option<Ast> {
+        let tok = self.current.clone();
+        let prec = token_to_precedence(&tok);
+        self.advance();
+        self.parse_expression(prec)
+            .map(|expr| unop_expr!(tok, expr))
+    }
+
+    fn parse_infix_expr(&mut self, left: Option<Ast>) -> Option<Ast> {
+        let tok = self.current.clone();
+        // println!("parse infix {:?} {:?}", left, tok);
+        let prec = token_to_precedence(&tok);
+
+        self.advance();
+        left.as_ref()?;
+
+        self.parse_expression(prec)
+            .map(|expr| binop_expr!(tok, left.unwrap(), expr))
+    }
+
+    fn parse_grouping(&mut self) -> Option<Ast> {
+        self.advance();
+        let expr = self.parse_expression(Precedence::None);
+
+        match self.current {
+            Token::Rp => {
+                self.advance();
+                expr // return just single expression
+            }
+            Token::Comma => self.parse_tuple(expr.unwrap()),
+            _ => None,
+        }
+    }
+
+    fn parse_tuple(&mut self, first: Ast) -> Option<Ast> {
+        let mut exprs = vec![first];
+        self.advance();
+
+        while self.current != Token::Rp {
+            self.skip_token(Token::Comma);
+            if let Some(expr) = self.parse_expression(Precedence::None) {
+                exprs.push(expr);
+            }
+        }
+
+        Some(tuple_expr!(exprs))
+    }
+
+    fn parse_conditional_expression(&mut self) -> Option<Ast> {
         self.advance();
 
         let condition = self.parse_expression(Precedence::None)?;
-        // println!("condition: {:?}", condition);
 
         let then = if self.expect_token(Token::LeftBrace) {
             let body = self.parse_body();
@@ -611,12 +479,18 @@ impl Parser {
             self.advance();
             body
         } else {
-            return None;
+            panic!(
+                "parse error: expected then block {{ after after if {}:{}",
+                self.lexer.line, self.lexer.col
+            );
         };
 
         let elze = if self.expect_token(Token::Else) {
             if !self.expect_token(Token::LeftBrace) {
-                return None;
+                panic!(
+                    "parse error: expected {{ after else {}:{}",
+                    self.lexer.line, self.lexer.col
+                );
             }
 
             let body = self.parse_body();
@@ -629,6 +503,7 @@ impl Parser {
 
         Some(if_expr!(condition, then, elze))
     }
+
     fn parse_call(&mut self, callee: Option<Ast>) -> Option<Ast> {
         match callee {
             Some(c) => {
@@ -638,7 +513,6 @@ impl Parser {
                 while self.current != Token::Rp {
                     self.skip_token(Token::Comma);
                     if let Some(expr) = self.parse_expression(Precedence::None) {
-                        self.print_current();
                         call_params.push(expr);
                     }
                 }
@@ -647,27 +521,20 @@ impl Parser {
             _ => None,
         }
     }
-    fn parse_int(&mut self, i: i64) -> Option<Ast> {
+
+    fn parse_index_expr(&mut self, obj: Option<Ast>) -> Option<Ast> {
         self.advance();
-        Some(int_expr!(i))
+        self.parse_expression(Precedence::None)
+            .map(|idx| Ast::Index(Box::new(obj.unwrap()), Box::new(idx), tvar()))
     }
 
-    fn parse_num(&mut self, n: f64) -> Option<Ast> {
+    fn parse_assignment_expression(&mut self, id: Option<Ast>) -> Option<Ast> {
         self.advance();
-        Some(num_expr!(n))
-    }
 
-    fn parse_str(&mut self, s: String) -> Option<Ast> {
-        self.advance();
-        Some(str_expr!(s))
-    }
-    fn parse_bool(&mut self, b: bool) -> Option<Ast> {
-        self.advance();
-        Some(bool_expr!(b))
-    }
-    fn parse_id(&mut self, id: String) -> Option<Ast> {
-        self.advance();
-        Some(id_expr!(id))
+        id.as_ref()?;
+
+        self.parse_expression(Precedence::None)
+            .map(|e| assignment_expr!(id.unwrap(), e))
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Ast> {
@@ -680,9 +547,9 @@ impl Parser {
             Token::True => self.parse_bool(true),
             Token::False => self.parse_bool(false),
             Token::Identifier(id) => self.parse_id(id.clone()),
-            Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expr(),
+            Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expression(),
             Token::Lp => self.parse_grouping(),
-            Token::If => self.parse_conditional_expr(),
+            Token::If => self.parse_conditional_expression(),
 
             _ => {
                 // self.error_no_prefix_parser();
@@ -692,7 +559,7 @@ impl Parser {
 
         tok = self.current.clone();
 
-        while precedence < self.token_to_precedence(&tok) {
+        while precedence < token_to_precedence(&tok) {
             match self.current {
                 Token::Plus
                 | Token::Minus
@@ -722,16 +589,41 @@ impl Parser {
 
         left
     }
-
-    fn print_current(&self) {
-        println!("{:?}", self.current);
+    fn parse_int(&mut self, i: i64) -> Option<Ast> {
+        self.advance();
+        Some(int_expr!(i))
     }
+
+    fn parse_num(&mut self, n: f64) -> Option<Ast> {
+        self.advance();
+        Some(num_expr!(n))
+    }
+
+    fn parse_str(&mut self, s: String) -> Option<Ast> {
+        self.advance();
+        Some(str_expr!(s))
+    }
+    fn parse_bool(&mut self, b: bool) -> Option<Ast> {
+        self.advance();
+        Some(bool_expr!(b))
+    }
+    fn parse_id(&mut self, id: String) -> Option<Ast> {
+        self.advance();
+        Some(id_expr!(id))
+    }
+
     fn expect_token(&mut self, tok: Token) -> bool {
         if self.current == tok {
             self.advance();
             true
         } else {
             false
+        }
+    }
+
+    fn skip_token(&mut self, tok: Token) {
+        if self.current == tok {
+            self.advance();
         }
     }
 }
@@ -749,10 +641,6 @@ mod tests {
     use super::*;
 
     use pretty_assertions::assert_eq;
-
-    fn tvar() -> Ttype {
-        Ttype::tvar("")
-    }
 
     #[test]
     fn let_stmt() {
@@ -779,7 +667,7 @@ mod tests {
         assert_eq!(
             vec![Ast::Let(
                 "a".into(),
-                Some(Box::new(id_expr!("int"))),
+                Some(tint()),
                 Some(Box::new(int_expr!(1)))
             )],
             program
@@ -954,7 +842,6 @@ mod tests {
                 "f".into(),
                 Box::new(Ast::Fn(
                     vec![id_expr!("a"), id_expr!("b"), id_expr!("c"),],
-                    None,
                     vec![
                         (binop_expr!(
                             Token::Plus,
@@ -986,7 +873,6 @@ mod tests {
                         id_expr!("b", tnum()),
                         id_expr!("c", tbool()),
                     ],
-                    Some(Ttype::Numeric(Numeric::Int)),
                     vec![
                         (binop_expr!(
                             Token::Plus,
@@ -998,7 +884,11 @@ mod tests {
                 ))
             )],
             program
-        )
+        );
+        assert_eq!(
+            program[0].ttype(),
+            Ttype::Fn(vec![tint(), tnum(), tbool(), tint()])
+        );
     }
 
     #[test]
@@ -1012,16 +902,13 @@ mod tests {
         assert_eq!(
             vec![Ast::FnDeclaration(
                 "printf".into(),
-                Box::new(Ast::Fn(
-                    vec![],
-                    Some(Ttype::Numeric(Numeric::Int)),
-                    vec![],
-                    tvar(),
-                ))
+                Box::new(Ast::Fn(vec![], vec![], tvar(),))
             )],
             program
-        )
+        );
+        assert_eq!(program[0].ttype(), Ttype::Fn(vec![tint()]));
     }
+
     #[test]
     fn fn_with_if() {
         let input = r#"
@@ -1041,7 +928,6 @@ mod tests {
                 "x".into(),
                 Box::new(Ast::Fn(
                     vec![id_expr!("a"), id_expr!("b"), id_expr!("c"),],
-                    None,
                     vec![if_expr!(
                         binop_expr!(Token::Equality, id_expr!("a"), id_expr!("b")),
                         vec![binop_expr!(Token::Star, int_expr!(2), id_expr!("a"))],
