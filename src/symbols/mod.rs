@@ -100,6 +100,16 @@ impl Ttype {
             _ => self.clone(),
         }
     }
+    pub fn mangle_name(&self) -> String {
+        match self {
+            Ttype::Fn(types) => {
+                let strv: Vec<String> = types.clone().iter().map(|t| format!("{:?}", t)).collect();
+
+                strv.join("_")
+            }
+            _ => String::new(),
+        }
+    }
 }
 
 pub fn tint8() -> Ttype {

@@ -20,6 +20,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn get_generic(&mut self, name: &str) -> &mut GenericFns {
         self.generic_fns.get_mut(name).unwrap()
     }
+    pub fn generic_variant_name(&self, name: &str, t: Ttype) -> String {
+        format!("{}_{}", name, t.mangle_name())
+    }
 
     pub fn get_generic_function(
         &mut self,
@@ -32,7 +35,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .map_or(false, |g| g.impls.contains(&fn_types));
 
         if gf_exists {
-            self.get_function(format!("{}_{:?}", id, fn_types).as_str())
+            self.get_function(self.generic_variant_name(id, fn_types).as_str())
         } else {
             None
         }

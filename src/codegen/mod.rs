@@ -53,7 +53,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         pass_manager: &'a PassManager<FunctionValue<'ctx>>,
         module: &'a Module<'ctx>,
         program: &Program,
-    ) -> Result<FunctionValue<'ctx>, &'ctx str> {
+    ) -> Result<(FunctionValue<'ctx>, AnyTypeEnum<'ctx>), &'ctx str> {
         let mut compiler = Self {
             context,
             builder,
@@ -92,7 +92,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match ttype {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
-            Ttype::Application(f, _, fn_type) => {
+            Ttype::Application(f, application_types, fn_type) => {
                 if let Ttype::Fn(fn_type) = *fn_type {
                     self.type_to_llvm_fn((*fn_type).last().unwrap().clone())
                 } else {
@@ -115,31 +115,52 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
-        let main_fn = self
-            .module
-            .add_function("main", self.get_main_fn_type(program), None);
+    fn compile_program(
+        &mut self,
+        program: &Program,
+    ) -> Result<(FunctionValue<'ctx>, AnyTypeEnum<'ctx>), &'ctx str> {
+        let main_fn_tmp =
+            self.module
+                .add_function("main_tmp", self.get_main_fn_type(program), None);
 
-        let basic_block = self.context.append_basic_block(main_fn, "entry");
+        let basic_block = self.context.append_basic_block(main_fn_tmp, "entry");
         self.builder.position_at_end(basic_block);
-        self.push_fn_stack(&main_fn);
+        self.push_fn_stack(&main_fn_tmp);
 
         let mut v = None;
         for stmt in program {
             v = self.codegen(&stmt);
         }
 
-        if let Some(v) = v {
+        let ret_type = if let Some(v) = v {
             self.add_return_value(v);
+            v.get_type()
         } else {
             self.builder.build_return(None);
-        }
+            AnyTypeEnum::VoidType(self.context.void_type())
+        };
+        let main_fn = match ret_type {
+            AnyTypeEnum::IntType(i) => {
+                self.module
+                    .add_function("main", i.fn_type(&[], false), None)
+            }
+
+            AnyTypeEnum::FloatType(f) => {
+                self.module
+                    .add_function("main", f.fn_type(&[], false), None)
+            }
+
+            _ => {
+                self.module
+                    .add_function("main", self.context.void_type().fn_type(&[], false), None)
+            }
+        };
 
         println!("top level env: {:?}", self.env);
 
         self.pop_fn_stack();
 
-        Ok(main_fn)
+        Ok((main_fn_tmp, ret_type))
     }
 
     fn cast_numeric(
@@ -340,7 +361,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                             let g = self.get_generic(callable_id.as_str());
                             if let Ast::Fn(params, return_type, body, _) = g.ast.clone() {
                                 fn_value = self.codegen_fn(
-                                    format!("{}_{:?}", callable_id, fn_type.clone()).as_str(),
+                                    self.generic_variant_name(
+                                        callable_id.as_str(),
+                                        fn_type.clone(),
+                                    )
+                                    .as_str(),
                                     &params,
                                     return_type,
                                     body,

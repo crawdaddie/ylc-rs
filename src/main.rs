@@ -9,6 +9,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
+use inkwell::types::{AnyTypeEnum, BasicTypeEnum};
 use inkwell::values::FunctionValue;
 use inkwell::OptimizationLevel;
 use parser::Program;
@@ -70,7 +71,8 @@ fn compile<'ctx, 'a>(
     fpm: &'a PassManager<FunctionValue<'ctx>>,
     program: &Program,
 ) {
-    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
+    if let Ok((main_fn, ret_type)) = Compiler::compile(&context, &builder, &fpm, &module, &program)
+    {
         module.print_to_stderr();
         let ee = module
             .create_jit_execution_engine(OptimizationLevel::None)
@@ -78,23 +80,24 @@ fn compile<'ctx, 'a>(
         let name = main_fn.get_name().to_str().unwrap().to_string();
 
         // let final_type = main_fn.get_type().get_return_type();
-        let final_type = program.last().unwrap().get_ttype();
-        match final_type {
-            Some(Ttype::Numeric(Numeric::Int)) => unsafe {
+        // let final_type = program.last().unwrap().get_ttype();
+        match ret_type {
+            AnyTypeEnum::IntType(i) => unsafe {
+                println!("{:?}", i);
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
-            Some(Ttype::Numeric(Numeric::Num)) => unsafe {
+            AnyTypeEnum::FloatType(f) => unsafe {
+                println!("float type {:?} {:?}", f, name);
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
 
-            Some(Ttype::Bool) => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
-
-            Some(Ttype::Str) => unsafe {
+            // Some(BasicTypeEnum::IntType(i)) => unsafe {
+            //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+            //     println!("=> {:?}", compiled_fn.unwrap().call());
+            // },
+            AnyTypeEnum::ArrayType(_) => unsafe {
                 let compiled_fn =
                     ee.get_function::<unsafe extern "C" fn() -> Vec<i8>>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
@@ -104,10 +107,11 @@ fn compile<'ctx, 'a>(
             //     let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
             //     println!("=> {:?}", compiled_fn.unwrap().call());
             // },
-            _ => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
+            AnyTypeEnum::VoidType(_) => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> ()>(name.as_str());
+                compiled_fn.unwrap().call();
             },
+            _ => {}
         }
         // unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str()) };
     }
