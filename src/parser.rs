@@ -167,8 +167,8 @@ impl Ast {
     pub fn ttype(&self) -> Ttype {
         match self {
             Ast::Let(
-                id,
-                t,           // optional explicit type parameter
+                _id,
+                _t,          // optional explicit type parameter
                 Some(value), // optional immediate assignment expression
             ) => value.ttype(),
 
@@ -178,8 +178,8 @@ impl Ast {
                 None, // optional immediate assignment expression
             ) => t.clone().unwrap(),
 
-            Ast::FnDeclaration(id, fn_expr) => fn_expr.ttype(),
-            Ast::TypeDeclaration(id, type_expr) => type_expr.ttype(),
+            Ast::FnDeclaration(_id, fn_expr) => fn_expr.ttype(),
+            Ast::TypeDeclaration(_id, type_expr) => type_expr.ttype(),
 
             Ast::Id(_, t)
             | Ast::Binop(_, _, _, t)
@@ -192,11 +192,11 @@ impl Ast {
             | Ast::Body(_, t)
             | Ast::If(_, _, _, t) => t.clone(),
 
-            Ast::Int8(i) => Ttype::Numeric(Numeric::Int8),
-            Ast::Integer(i) => Ttype::Numeric(Numeric::Int),
-            Ast::Number(f) => Ttype::Numeric(Numeric::Num),
-            Ast::Bool(b) => Ttype::Bool,
-            Ast::String(s) => Ttype::Str,
+            Ast::Int8(_i) => Ttype::Numeric(Numeric::Int8),
+            Ast::Integer(_i) => Ttype::Numeric(Numeric::Int),
+            Ast::Number(_f) => Ttype::Numeric(Numeric::Num),
+            Ast::Bool(_b) => Ttype::Bool,
+            Ast::String(_s) => Ttype::Str,
             Ast::VarArg => Ttype::Tuple(vec![]),
         }
     }
@@ -205,7 +205,7 @@ impl Ast {
 impl PartialEq for Ast {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Ast::Let(id1, t1, e1), Ast::Let(id2, t2, e2)) => id1 == id2 && e1 == e2,
+            (Ast::Let(id1, _t1, e1), Ast::Let(id2, _t2, e2)) => id1 == id2 && e1 == e2,
             (Ast::FnDeclaration(id1, e1), Ast::FnDeclaration(id2, e2)) => id1 == id2 && e1 == e2,
             (Ast::TypeDeclaration(id1, e1), Ast::TypeDeclaration(id2, e2)) => {
                 id1 == id2 && e1 == e2
@@ -240,7 +240,7 @@ fn identifier_to_type(id: Identifier) -> Ttype {
         "bool" => Ttype::Bool,
         "str" => Ttype::Str,
         s => Ttype::Var(s.into()),
-        _ => tvar(),
+        // _ => tvar(),
     }
 }
 fn token_to_precedence(tok: &Token) -> Precedence {
@@ -404,8 +404,7 @@ impl Parser {
         }
         let params = self.parse_fn_params();
         let return_type = if self.expect_token(Token::Colon) {
-            let t = identifier_to_type(self.parse_identifier());
-            t
+            identifier_to_type(self.parse_identifier())
         } else {
             tvar()
         };
@@ -940,11 +939,6 @@ mod tests {
             program
         )
     }
-    // vec![binop_expr!(
-    //     Token::Plus,
-    //     binop_expr!(Token::Plus, id_expr!("a"), id_expr!("b")),
-    //     id_expr!("c")
-    // )],
 
     #[test]
     fn call_expr() {

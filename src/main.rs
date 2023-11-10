@@ -50,7 +50,7 @@ fn main() -> Result<(), io::Error> {
 
     let context = Context::create();
     let module = context.create_module("ylc");
-    let builder = context.create_builder();
+    let _builder = context.create_builder();
 
     // Create FPM
     let fpm = PassManager::create(&module);
@@ -65,13 +65,12 @@ fn main() -> Result<(), io::Error> {
     fpm.add_reassociate_pass();
     fpm.initialize();
 
-    let mut program = parser::parse(file_contents);
+    let program = parser::parse(file_contents);
     // println!("program {:?}", program);
     // typecheck::infer_types(&mut program);
 
     println!("\x1b[1;35m");
     for s in &program {
-        // print_ast(s.clone(), 0);
         println!("{:?}", s);
     }
     println!("\x1b[1;0m");
