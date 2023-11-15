@@ -65,9 +65,9 @@ fn main() -> Result<(), io::Error> {
     fpm.add_reassociate_pass();
     fpm.initialize();
 
-    let program = parser::parse(file_contents);
+    let mut program = parser::parse(file_contents);
     // println!("program {:?}", program);
-    // typecheck::infer_types(&mut program);
+    typecheck::infer_types(&mut program);
 
     println!("\x1b[1;35m");
     for s in &program {
