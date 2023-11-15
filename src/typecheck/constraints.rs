@@ -1,6 +1,6 @@
 use crate::{
     parser::Identifier,
-    symbols::{max_numeric_type, Env, TypecheckSymbol},
+    symbols::{max_numeric_type, Env, Environment, Symbol},
 };
 
 use crate::{
@@ -28,19 +28,19 @@ fn tvar() -> Ttype {
 
 pub struct ConstraintGenerator {
     pub constraints: Vec<Constraint>,
-    pub env: Env<TypecheckSymbol>,
+    pub env: Env<Symbol>,
 }
 
 impl ConstraintGenerator {
     pub fn new() -> Self {
         let mut cgen = Self {
             constraints: vec![],
-            env: Env::<TypecheckSymbol>::new(),
+            env: Env::<Symbol>::new(),
         };
         cgen.env.push();
         cgen
     }
-    fn body(&mut self, body: &Vec<Ast>, final_ttype: Option<Ttype>) -> Option<Ttype> {
+    fn body(&mut self, body: &Vec<Ast>, final_ttype: Option<Ttype>) -> Ttype {
         if body.is_empty() {
             return None;
         }
@@ -51,54 +51,47 @@ impl ConstraintGenerator {
             fin = s.clone();
         }
 
-        if let (Some(l), Some(r)) = (final_ttype, fin.get_ttype()) {
+        if let (Some(l), r) = (final_ttype, fin.ttype()) {
             self.push_constraint(l, r);
         };
 
-        fin.get_ttype()
+        fin.ttype()
     }
     fn fn_declaration(&mut self, id: Identifier, fn_expr: &Ast) {
-        if let Ast::Fn(args_vec, ret_type, stmts, ttype) = fn_expr {
+        if let Ast::Fn(args_vec, stmts, ttype) = fn_expr {
             self.env.push();
             let mut fn_types = vec![];
             for arg in args_vec {
                 match arg {
                     Ast::Id(arg_id, arg_type) => {
                         self.generate_constraints(arg);
-                        fn_types.push(arg.get_ttype().unwrap());
-                        self.env.bind_symbol(
-                            arg_id.clone(),
-                            TypecheckSymbol::Variable(arg_type.clone()),
-                        );
+                        fn_types.push(arg.ttype());
+                        self.env
+                            .bind_symbol(arg_id.clone(), Symbol::Variable(arg_type.clone()));
                     }
                     Ast::VarArg => fn_types.push(Ttype::Tuple(vec![])),
                     _ => {}
                 }
             }
             self.env
-                .bind_symbol(id.clone(), TypecheckSymbol::Function(ttype.clone()));
+                .bind_symbol(id.clone(), Symbol::Function(ttype.clone()));
 
             let final_stmt_type = self.body(
                 stmts, None, // TODO: ret_type
             );
 
-            if let Some(ret_type) = ret_type {
-                fn_types.push(ret_type.clone())
-            } else {
-                fn_types.push(final_stmt_type.unwrap_or(tvar()));
-            }
+            fn_types.push(final_stmt_type);
             self.env.pop();
 
             let fn_type = Ttype::Fn(fn_types);
-            self.env
-                .bind_symbol(id, TypecheckSymbol::Function(fn_type.clone()));
+            self.env.bind_symbol(id, Symbol::Function(fn_type.clone()));
             self.push_constraint(ttype.clone(), fn_type);
         }
     }
 
     fn id(&mut self, id: Identifier, ttype: Ttype) {
         // lookup id in env and constrain ttype to the lookup's ttype
-        if let Some(TypecheckSymbol::Variable(t)) | Some(TypecheckSymbol::Function(t)) =
+        if let Some(Symbol::Variable(t)) | Some(Symbol::Function(t)) =
             self.env.lookup(id.to_string())
         {
             self.push_constraint(ttype, t.clone());
@@ -184,7 +177,7 @@ impl ConstraintGenerator {
 
         let fn_types = match callee {
             Ast::Id(callee_ref, _callee_ref_ttype) => match env.lookup(callee_ref.clone()) {
-                Some(TypecheckSymbol::Function(Ttype::Fn(fn_types_vec))) => fn_types_vec.clone(),
+                Some(Symbol::Function(Ttype::Fn(fn_types_vec))) => fn_types_vec.clone(),
                 _ => {
                     // callee not found in env
                     return;
@@ -247,10 +240,8 @@ impl ConstraintGenerator {
         match ast {
             Ast::Let(id, _type_expr, Some(value)) => {
                 self.generate_constraints(value);
-                self.env.bind_symbol(
-                    id.clone(),
-                    TypecheckSymbol::Variable((*value).get_ttype().unwrap()),
-                );
+                self.env
+                    .bind_symbol(id.clone(), Symbol::Variable((*value).get_ttype().unwrap()));
             }
             Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id.clone(), fn_expr),
             Ast::TypeDeclaration(_id, _type_expr) => {}
@@ -514,7 +505,7 @@ mod tests {
         let mut cg = ConstraintGenerator::new();
         let fn_type = Ttype::Fn(vec![Ttype::tvar("fn_arg_0"), Ttype::tvar("fn_ret")]);
         cg.env
-            .bind_symbol("f".into(), TypecheckSymbol::Function(fn_type.clone()));
+            .bind_symbol("f".into(), Symbol::Function(fn_type.clone()));
         cg.generate_constraints(&call_expr!(
             id_expr!("f", Ttype::tvar("fn_ref")),
             vec![int_expr!(1)],
@@ -557,12 +548,10 @@ mod tests {
         let mut cg = ConstraintGenerator::new();
         let generic_fn_type = Ttype::Fn(vec![
             tvar("t0"),
-            Ttype::MaxNumeric(Box::new(tvar("t0")), Box::new(tint())),
+            Ttype::MaxNumeric(vec![(tvar("t0")), (tint())]),
         ]);
-        cg.env.bind_symbol(
-            "f".into(),
-            TypecheckSymbol::Function(generic_fn_type.clone()),
-        );
+        cg.env
+            .bind_symbol("f".into(), Symbol::Function(generic_fn_type.clone()));
         cg.generate_constraints(&call_expr!(
             id_expr!("f", tvar("fn_ref")),
             vec![int_expr!(1)],
@@ -576,13 +565,9 @@ mod tests {
     #[test]
     fn test_call_arg_constraints() {
         let mut cg = ConstraintGenerator::new();
-        let fn_type = Ttype::Fn(vec![
-            Ttype::tvar("fn_arg_0"),
-            Ttype::tvar("fn_arg_1"),
-            Ttype::tvar("fn_ret"),
-        ]);
+        let fn_type = Ttype::Fn(vec![tvar("fn_arg_0"), tvar("fn_arg_1"), tvar("fn_ret")]);
         cg.env
-            .bind_symbol("f".into(), TypecheckSymbol::Function(fn_type.clone()));
+            .bind_symbol("f".into(), Symbol::Function(fn_type.clone()));
         cg.generate_constraints(&call_expr!(
             id_expr!("f", Ttype::tvar("fn_ref")),
             vec![

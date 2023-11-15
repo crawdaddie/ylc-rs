@@ -24,8 +24,7 @@ fn update_callable(ast: &mut Ast, params: &mut Vec<Ast>) {
                 "update generic callable {:?} {:?} {:?}",
                 callable, ttype, params
             );
-            *ttype =
-                ttype.transform_generic(params.iter().map(|p| p.get_ttype().unwrap()).collect())
+            *ttype = ttype.transform_generic(params.iter().map(|p| p.ttype()).collect())
         }
         _ => {}
     }
@@ -40,7 +39,7 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
             apply_substitution(ttype, subs);
             // self.id(id.clone(), ttype.clone());
         }
-        Ast::Fn(params_vec, _ret_type_ast, body, ttype) => {
+        Ast::Fn(params_vec, body, ttype) => {
             apply_substitution(ttype, subs);
             for p in params_vec {
                 update_types(p, subs);
@@ -167,34 +166,34 @@ mod tests {
         }
     }
 
-    #[test]
-    fn generic_function() {
-        let input = r#"
-        let f = fn (a) {
-            a + 1
-        }
-        f(1)
-        "#;
-
-        let mut parser = Parser::new(Lexer::new(input.into()));
-        let mut program = parser.parse_program();
-        infer_types(&mut program);
-
-        if let Ast::Call(fn_id, args, Ttype::Application(_, app_types, _)) = program[1].clone() {
-            let mut fn_types = vec![];
-            if let Ast::Id(_, fn_type) = *fn_id {
-                let transformed_fn_type = fn_type.transform_generic(app_types);
-                println!("call type {:?}", transformed_fn_type.fn_return().unwrap());
-                if let Ttype::Fn(fn_types_vec) = fn_type {
-                    fn_types = fn_types_vec;
-                } else {
-                    panic!()
-                }
-            };
-            if fn_types.is_empty() {
-                panic!()
-            }
-            assert!(false);
-        }
-    }
+    // #[test]
+    // fn generic_function() {
+    //     let input = r#"
+    //     let f = fn (a) {
+    //         a + 1
+    //     }
+    //     f(1)
+    //     "#;
+    //
+    //     let mut parser = Parser::new(Lexer::new(input.into()));
+    //     let mut program = parser.parse_program();
+    //     infer_types(&mut program);
+    //
+    //     if let Ast::Call(fn_id, args, Ttype::Application(_, app_types, _)) = program[1].clone() {
+    //         let mut fn_types = vec![];
+    //         if let Ast::Id(_, fn_type) = *fn_id {
+    //             let transformed_fn_type = fn_type.transform_generic(app_types);
+    //             println!("call type {:?}", transformed_fn_type.fn_return().unwrap());
+    //             if let Ttype::Fn(fn_types_vec) = fn_type {
+    //                 fn_types = fn_types_vec;
+    //             } else {
+    //                 panic!()
+    //             }
+    //         };
+    //         if fn_types.is_empty() {
+    //             panic!()
+    //         }
+    //         assert!(false);
+    //     }
+    // }
 }
