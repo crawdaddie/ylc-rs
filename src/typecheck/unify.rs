@@ -2,38 +2,30 @@ use super::constraints::Constraint;
 use crate::symbols::Ttype;
 use std::collections::HashMap;
 
-pub type Substitutions = HashMap<String, Ttype>;
+pub type Substitutions = HashMap<Ttype, Ttype>;
 pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
     match &t {
         Ttype::Var(t_name) => {
-            if let Some(t_lookup) = subs.get(&t_name.clone()) {
+            if let Some(t_lookup) = subs.get(&t) {
                 t_lookup.clone()
             } else {
                 t
             }
         }
-        Ttype::MaxNumeric(ref x, ref y) => {
-            // resolve a max numeric type into the max of two types if possible
-            let xresolved = lookup_contained_types(*x.clone(), subs);
-            let yresolved = lookup_contained_types(*y.clone(), subs);
-            match (xresolved, yresolved) {
-                (Ttype::Numeric(xnum), Ttype::Numeric(ynum)) => {
-                    Ttype::Numeric(if xnum >= ynum { xnum } else { ynum })
-                }
-                _ => Ttype::MaxNumeric(
-                    Box::new(lookup_contained_types(*x.clone(), subs).clone()),
-                    Box::new(lookup_contained_types(*y.clone(), subs).clone()),
-                ),
-            }
-        }
-        Ttype::Application(fn_name, args, fn_type) => {
-            let new_args = args
-                .iter()
-                .map(|v| lookup_contained_types(v.clone(), subs))
-                .collect();
-            Ttype::Application(fn_name.clone(), new_args, fn_type.clone())
-        }
-
+        // Ttype::MaxNumeric(ref x, ref y) => {
+        //     // resolve a max numeric type into the max of two types if possible
+        //     let xresolved = lookup_contained_types(*x.clone(), subs);
+        //     let yresolved = lookup_contained_types(*y.clone(), subs);
+        //     match (xresolved, yresolved) {
+        //         (Ttype::Numeric(xnum), Ttype::Numeric(ynum)) => {
+        //             Ttype::Numeric(if xnum >= ynum { xnum } else { ynum })
+        //         }
+        //         _ => Ttype::MaxNumeric(
+        //             Box::new(lookup_contained_types(*x.clone(), subs).clone()),
+        //             Box::new(lookup_contained_types(*y.clone(), subs).clone()),
+        //         ),
+        //     }
+        // }
         Ttype::Fn(fn_components) => Ttype::Fn(
             fn_components
                 .iter()
@@ -76,11 +68,11 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
     // println!("unify {:?}::{:?}\n{:?}", lhs, rhs, subs);
     match (lhs, rhs) {
         (Ttype::Var(v1), Ttype::Var(v2)) if v1 == v2 => {}
-        (Ttype::Var(v1), Ttype::Var(v2)) => {
-            if let Some(v2_follow) = subs.clone().get(v2) {
+        (Ttype::Var(v1), r) => {
+            if let Some(v2_follow) = subs.clone().get(r) {
                 unify(lhs, v2_follow, subs);
             } else {
-                subs.insert(v1.into(), rhs.clone());
+                subs.insert(lhs.clone(), rhs.clone());
             }
         }
         // (Ttype::Var(v), Ttype::MaxNumeric(w, x)) => {
@@ -89,43 +81,40 @@ pub fn unify(lhs: &Ttype, rhs: &Ttype, subs: &mut Substitutions) {
         // }
         (Ttype::Var(v), t) => {
             let lookup = lookup_contained_types(t.clone(), subs);
-            if occurs(v, &lookup, subs) {
+            if occurs(lhs, &lookup, subs) {
                 panic!("Occurs check failed");
             }
 
-            subs.insert(v.clone(), lookup);
+            subs.insert(lhs.clone(), lookup);
         }
         (t, Ttype::Var(v)) => {
             let lookup = lookup_contained_types(t.clone(), subs);
-            if occurs(v, &lookup, subs) {
+            if occurs(lhs, &lookup, subs) {
                 panic!("Occurs check failed");
             }
 
-            subs.insert(v.clone(), lookup);
-        }
-        (Ttype::Application(c1, args1, _), Ttype::Application(c2, args2, _)) if c1 == c2 => {
-            for (arg1, arg2) in args1.iter().zip(args2) {
-                unify(arg1, arg2, subs);
-            }
+            subs.insert(lhs.clone(), lookup);
         }
         (Ttype::Tuple(args1), Ttype::Tuple(args2)) => {
             for (arg1, arg2) in args1.iter().zip(args2) {
                 unify(arg1, arg2, subs);
             }
         }
+
+        (Ttype::Fn(args1), Ttype::Fn(args2)) => {
+            for (arg1, arg2) in args1.iter().zip(args2) {
+                unify(arg1, arg2, subs);
+            }
+        }
         (Ttype::Numeric(n1), Ttype::Numeric(n2)) => {}
-        _ => panic!("Cannot unify types"),
+        _ => panic!("Cannot unify types {:?} {:?}", lhs, rhs),
     };
 }
 
-fn occurs(l: &str, r: &Ttype, subs: &HashMap<String, Ttype>) -> bool {
+fn occurs(l: &Ttype, r: &Ttype, subs: &Substitutions) -> bool {
     match r {
-        Ttype::Var(v2) if l == v2 => true,
-        Ttype::Var(v2) => subs.get(v2).map_or(false, |t| occurs(l, t, subs)),
-        Ttype::Application(_, args, _) | Ttype::Tuple(args) => {
-            args.iter().any(|arg| occurs(l, arg, subs))
-        }
-        Ttype::MaxNumeric(u, v) => occurs(l, u, subs) || occurs(l, v, subs),
+        Ttype::Var(_) if l == r => true,
+        Ttype::Var(_) => subs.get(l).map_or(false, |t| occurs(l, t, subs)),
         // ... other types
         _ => false,
     }
@@ -146,74 +135,39 @@ pub fn unify_constraints(constraints: Vec<Constraint>, subs: &mut Substitutions)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::symbols::{tbool, tint, tvar, Numeric};
+    use crate::{
+        symbols::{tbool, tint, tvar, Numeric},
+        typecheck::constraints::cons,
+    };
 
     // use pretty_assertions::assert_eq;
 
     #[ignore]
     #[test]
     fn t_unify_constraints() {
-        let tests: Vec<(Vec<Constraint>, Vec<(String, Ttype)>)> = vec![(
+        let tests: Vec<(Vec<Constraint>, Vec<(Ttype, Ttype)>)> = vec![(
             vec![
-                Constraint {
-                    lhs: Ttype::tvar("t7"),
-                    rhs: Ttype::tvar("t2"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t8"),
-                    rhs: Ttype::tvar("t3"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t6"),
-                    rhs: Ttype::Bool,
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t6"),
-                    rhs: Ttype::Bool,
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t11"),
-                    rhs: Ttype::tvar("t2"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t9"),
-                    rhs: Ttype::MaxNumeric(
-                        Box::new(Ttype::Numeric(Numeric::Int)),
-                        Box::new(Ttype::tvar("t11")),
-                    ),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t5"),
-                    rhs: Ttype::tvar("t9"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t13"),
-                    rhs: Ttype::tvar("t3"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t14"),
-                    rhs: Ttype::tvar("t4"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t12"),
-                    rhs: Ttype::MaxNumeric(
-                        Box::new(Ttype::tvar("t13")),
-                        Box::new(Ttype::tvar("t14")),
-                    ),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t5"),
-                    rhs: Ttype::tvar("t12"),
-                },
-                Constraint {
-                    lhs: Ttype::tvar("t1"),
-                    rhs: Ttype::Fn(vec![
-                        Ttype::tvar("t2"),
-                        Ttype::tvar("t3"),
-                        Ttype::tvar("t4"),
-                        Ttype::tvar("t5"),
-                    ]),
-                },
+                cons(tvar("t7"), tvar("t2")),
+                cons(tvar("t8"), tvar("t3")),
+                cons(tvar("t6"), Ttype::Bool),
+                cons(tvar("t6"), Ttype::Bool),
+                cons(tvar("t11"), tvar("t2")),
+                cons(
+                    tvar("t9"),
+                    Ttype::MaxNumeric(vec![Ttype::Numeric(Numeric::Int), tvar("t11")]),
+                ),
+                cons(tvar("t5"), tvar("t9")),
+                cons(tvar("t13"), tvar("t3")),
+                cons(tvar("t14"), tvar("t4")),
+                cons(
+                    tvar("t12"),
+                    Ttype::MaxNumeric(vec![tvar("t13"), tvar("t14")]),
+                ),
+                cons(tvar("t5"), tvar("t12")),
+                cons(
+                    tvar("t1"),
+                    Ttype::Fn(vec![tvar("t2"), tvar("t3"), tvar("t4"), tvar("t5")]),
+                ),
             ],
             // **
             // let x = fn (a, b, c) {
@@ -263,25 +217,19 @@ mod tests {
             //
             //  't1))
             vec![
-                ("t6".into(), Ttype::Bool),
+                (tvar("t6"), Ttype::Bool),
                 (
-                    "t5".into(),
-                    Ttype::MaxNumeric(
-                        Box::new(Ttype::Numeric(Numeric::Int)),
-                        Box::new(Ttype::tvar("t11")),
-                    ),
+                    tvar("t5"),
+                    Ttype::MaxNumeric(vec![Ttype::Numeric(Numeric::Int), tvar("t11")]),
                 ),
                 (
-                    "t5".into(),
-                    Ttype::MaxNumeric(
-                        Box::new(Ttype::Numeric(Numeric::Int)),
-                        Box::new(Ttype::tvar("t11")),
-                    ),
+                    tvar("t5"),
+                    Ttype::MaxNumeric(vec![Ttype::Numeric(Numeric::Int), tvar("t11")]),
                 ),
-                ("t3".into(), tvar("")),
-                ("t4".into(), tvar("")),
-                ("t5".into(), tvar("")),
-                ("t6".into(), tvar("")),
+                (tvar("t3"), tvar("")),
+                (tvar("t4"), tvar("")),
+                (tvar("t5"), tvar("")),
+                (tvar("t6"), tvar("")),
             ],
         )];
         for (cons, expect) in tests {
@@ -292,7 +240,7 @@ mod tests {
 
     #[test]
     fn simple_constraints() {
-        let tests: Vec<(Vec<Constraint>, Vec<(String, Ttype)>)> = vec![
+        let tests: Vec<(Vec<Constraint>, Vec<(Ttype, Ttype)>)> = vec![
             // λ let a = if b == 1 { (0,1) } else { (2, 3) }
             // Let("a", None, Some(
             //      If(
@@ -342,11 +290,11 @@ mod tests {
                     },
                 ],
                 vec![
-                    ("t1".into(), Ttype::Tuple(vec![tint(), tint()])),
-                    ("t5".into(), Ttype::Tuple(vec![tint(), tint()])),
-                    ("t8".into(), Ttype::Tuple(vec![tint(), tint()])),
-                    ("t2".into(), tbool()),
-                    ("t3".into(), tint()),
+                    (tvar("t1"), Ttype::Tuple(vec![tint(), tint()])),
+                    (tvar("t5"), Ttype::Tuple(vec![tint(), tint()])),
+                    (tvar("t8"), Ttype::Tuple(vec![tint(), tint()])),
+                    (tvar("t2"), tbool()),
+                    (tvar("t3"), tint()),
                 ],
             ),
         ];

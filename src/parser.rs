@@ -260,7 +260,7 @@ fn token_to_precedence(tok: &Token) -> Precedence {
 }
 
 pub type Program = Vec<Ast>;
-struct Parser {
+pub struct Parser {
     lexer: Lexer,
     previous: Token,
     current: Token,

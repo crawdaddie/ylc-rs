@@ -154,7 +154,7 @@ impl Ttype {
             }
             Ttype::Array(t) => Ttype::Array(Box::new(t.substitute(mem, sub))),
             Ttype::Var(_) if self == mem => {
-                println!("substitute {:?} {:?} {:?}", self, mem, sub);
+                // println!("substitute {:?} {:?} {:?}", self, mem, sub);
                 sub.clone()
             }
             _ => self.clone(),
