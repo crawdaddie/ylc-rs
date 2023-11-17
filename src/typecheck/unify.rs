@@ -142,7 +142,7 @@ mod tests {
 
     // use pretty_assertions::assert_eq;
 
-    #[ignore]
+    // #[ignore]
     #[test]
     fn t_unify_constraints() {
         let tests: Vec<(Vec<Constraint>, Vec<(Ttype, Ttype)>)> = vec![(

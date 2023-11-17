@@ -106,17 +106,17 @@ impl ConstraintGenerator {
 
         let fn_types = match callable {
             Ast::Id(callable, callable_type) => match self.get_function_type(callable.clone()) {
-                Some(fn_type) if fn_type.is_generic() => {
-                    if let Ttype::Fn(tvec) =
-                        fn_type.transform_generic(call_args.iter().map(|x| x.ttype()).collect())
-                    {
-                        self.push_constraint(callable_type.clone(), Ttype::Fn(tvec.clone()));
-                        tvec
-                    } else {
-                        self.push_constraint(callable_type.clone(), fn_type.clone());
-                        return;
-                    }
-                }
+                // Some(fn_type) if fn_type.is_generic() => {
+                //     if let Ttype::Fn(tvec) =
+                //         fn_type.transform_generic(call_args.iter().map(|x| x.ttype()).collect())
+                //     {
+                //         self.push_constraint(callable_type.clone(), Ttype::Fn(tvec.clone()));
+                //         tvec
+                //     } else {
+                //         self.push_constraint(callable_type.clone(), fn_type.clone());
+                //         return;
+                //     }
+                // }
                 Some(Ttype::Fn(fn_types)) => {
                     // self.push_constraint(callable_type.clone(), Ttype::Fn(fn_types.clone()));
                     fn_types.clone()
@@ -421,7 +421,6 @@ mod tests {
     fn call_generic() {
         let mut cg = ConstraintGenerator::new();
         let fn_type = Ttype::Fn(vec![tvar("fn_arg_0"), tvar("fn_arg_0")]);
-
         cg.env
             .bind_symbol("f".into(), Symbol::Function(fn_type.clone()));
 
@@ -431,7 +430,7 @@ mod tests {
             tvar("call_expr")
         ));
 
-        println!("constraints {:?} {:?}", cg.constraints, cg.env);
+        // println!("constraints {:?} {:?}", cg.constraints, cg.env);
         // panic!();
         assert_eq_unordered::<Constraint>(
             vec![
