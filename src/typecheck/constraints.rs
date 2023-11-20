@@ -1,17 +1,11 @@
 use crate::{
     lexer::Token,
     parser::{Ast, Identifier},
-    symbols::{max_numeric_type, tint, transform_generic_vec, Env, Environment, Symbol, Ttype},
+    symbols::{max_numeric_type, tint, Env, Environment, Symbol, Ttype},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Constraint {
-    pub lhs: Ttype,
-    pub rhs: Ttype,
-}
-pub fn cons(lhs: Ttype, rhs: Ttype) -> Constraint {
-    Constraint { lhs, rhs }
-}
+pub type Constraint = (Ttype, Ttype);
+
 pub struct ConstraintGenerator {
     pub constraints: Vec<Constraint>,
     pub env: Env<Symbol>,
@@ -29,10 +23,7 @@ impl ConstraintGenerator {
 
     fn push_constraint(&mut self, left: Ttype, right: Ttype) {
         if left != right {
-            self.constraints.push(Constraint {
-                lhs: left,
-                rhs: right,
-            });
+            self.constraints.push((left, right));
         }
     }
     fn fn_proto(&mut self, params_vec: &Vec<Ast>) -> Vec<Ttype> {
@@ -56,10 +47,6 @@ impl ConstraintGenerator {
             self.generate_constraints(s);
             fin = s.clone();
         }
-
-        // if let (Some(l), r) = (expected_return, fin.ttype()) {
-        //     self.push_constraint(l, r);
-        // };
 
         fin.ttype()
     }
@@ -97,6 +84,32 @@ impl ConstraintGenerator {
             _ => None,
         }
     }
+
+    fn callable_identifier(
+        &mut self,
+        callable_id: &Identifier,
+        callable_type: &Ttype,
+        call_args: &Vec<Ast>,
+    ) -> Ttype {
+        match self.get_function_type(callable_id.clone()) {
+            Some(fn_type) if fn_type.is_generic() => {
+                let arg_types: Vec<Ttype> = call_args.iter().map(|a| a.ttype()).collect();
+                let fn_type_trans = fn_type.clone().transform_generic(arg_types);
+                self.push_constraint(callable_type.clone(), fn_type_trans.clone());
+                fn_type_trans
+            }
+
+            Some(fn_type) => {
+                let f = fn_type.clone();
+                self.push_constraint(callable_type.clone(), f.clone());
+                f
+            }
+            _ => {
+                panic!()
+            }
+        }
+    }
+
     fn call(&mut self, callable: &Ast, call_args: &Vec<Ast>, ttype: Ttype) {
         // self.generate_constraints(callable);
 
@@ -104,50 +117,21 @@ impl ConstraintGenerator {
             self.generate_constraints(p);
         }
 
-        let fn_types = match callable {
-            Ast::Id(callable, callable_type) => match self.get_function_type(callable.clone()) {
-                // Some(fn_type) if fn_type.is_generic() => {
-                //     if let Ttype::Fn(tvec) =
-                //         fn_type.transform_generic(call_args.iter().map(|x| x.ttype()).collect())
-                //     {
-                //         self.push_constraint(callable_type.clone(), Ttype::Fn(tvec.clone()));
-                //         tvec
-                //     } else {
-                //         self.push_constraint(callable_type.clone(), fn_type.clone());
-                //         return;
-                //     }
-                // }
-                Some(Ttype::Fn(fn_types)) => {
-                    // self.push_constraint(callable_type.clone(), Ttype::Fn(fn_types.clone()));
-                    fn_types.clone()
+        match callable {
+            Ast::Id(callable, callable_type) => {
+                if let Ttype::Fn(fn_types) =
+                    self.callable_identifier(callable, callable_type, call_args)
+                {
+                    let l = ttype.clone();
+                    let r = fn_types.last().unwrap();
+                    self.push_constraint(l, r.clone());
                 }
-
-                _ => {
-                    return;
-                }
-            },
-            _ => {
-                return;
             }
+            _ => panic!(),
         };
 
-        if call_args.len() < fn_types.len() - 1 {
-            // typecheck curried fn
-            let curried_fn_components = &fn_types[call_args.len()..];
-            self.push_constraint(ttype.clone(), Ttype::Fn(curried_fn_components.into()));
-            return;
-        };
-        // fn_types;
-        // if let Ast::Id(callable, callable_type) = callable {
-        // let mut cons = &self.constraints;
-        // cons.push(Constraint {
-        //     lhs: callable_type.clone(),
-        //     rhs: Ttype::Fn(fn_types.clone()),
-        // });
-        // self.push_constraint(callable_type.clone(), Ttype::Fn(fn_types.clone()));
-        // };
-
-        self.push_constraint(ttype.clone(), fn_types.last().unwrap().clone());
+        // if let Ttype::Fn(fn_types) = fn_type {
+        // }
     }
 
     pub fn generate_constraints(&mut self, ast: &Ast) {
@@ -237,11 +221,11 @@ impl ConstraintGenerator {
                 self.push_constraint(cond.ttype(), Ttype::Bool);
 
                 let then_result_type = self.body(then);
-                self.push_constraint(then_result_type, ttype.clone());
+                self.push_constraint(ttype.clone(), then_result_type);
 
                 if let Some(else_body) = elze {
                     let else_result_type = self.body(else_body);
-                    self.push_constraint(else_result_type, ttype.clone());
+                    self.push_constraint(ttype.clone(), else_result_type);
                 }
             }
             Ast::Call(callable, args, ttype) => self.call(callable, args, ttype.clone()),
@@ -270,9 +254,6 @@ mod tests {
         assert_eq!(expected_set, actual_set);
     }
 
-    fn cons(l: Ttype, r: Ttype) -> Constraint {
-        Constraint { lhs: l, rhs: r }
-    }
     #[test]
     fn constraints() {
         let program = vec![if_expr!(
@@ -289,11 +270,10 @@ mod tests {
         )];
         let mut cg = ConstraintGenerator::new();
         cg.generate_constraints(&program[0]);
-        println!("{:?}", cg.constraints);
         assert_eq_unordered::<Constraint>(
             vec![
-                cons(tvar("tuple2"), tvar("if_expr_type")),
-                cons(tvar("tuple1"), tvar("if_expr_type")),
+                (tvar("if_expr_type"), tvar("tuple2")),
+                (tvar("if_expr_type"), tvar("tuple1")),
             ],
             cg.constraints,
         );
@@ -317,13 +297,13 @@ mod tests {
                     )),
                 )],
                 vec![
-                    cons(tvar("arg_a_ref"), tvar("arg_a")),
-                    cons(tvar("arg_b_ref"), tvar("arg_b")),
-                    cons(
+                    (tvar("arg_a_ref"), tvar("arg_a")),
+                    (tvar("arg_b_ref"), tvar("arg_b")),
+                    (
                         tvar("fn_return"),
                         Ttype::MaxNumeric(vec![tvar("arg_a_ref"), tvar("arg_b_ref")]),
                     ),
-                    cons(
+                    (
                         tvar("fn_type"),
                         Ttype::Fn(vec![tvar("arg_a"), tvar("arg_b"), tvar("fn_return")]),
                     ),
@@ -337,7 +317,7 @@ mod tests {
                     int_expr!(2),
                     tvar("+")
                 )],
-                vec![cons(tvar("+"), tint())],
+                vec![(tvar("+"), tint())],
             ),
             // Binop generic
             (
@@ -347,10 +327,7 @@ mod tests {
                     id_expr!("b", tvar("b")),
                     tvar("+")
                 )],
-                vec![cons(
-                    tvar("+"),
-                    Ttype::MaxNumeric(vec![tvar("a"), tvar("b")]),
-                )],
+                vec![(tvar("+"), Ttype::MaxNumeric(vec![tvar("a"), tvar("b")]))],
             ),
             // recursive func
             (
@@ -375,14 +352,14 @@ mod tests {
                     )),
                 )],
                 vec![
-                    cons(tvar("arg_a_ref"), tvar("arg_a")),
-                    cons(tvar("arg_b_ref"), tvar("arg_b")),
-                    cons(
+                    (tvar("arg_a_ref"), tvar("arg_a")),
+                    (tvar("arg_b_ref"), tvar("arg_b")),
+                    (
                         tvar("tmp_binop"),
                         Ttype::MaxNumeric(vec![tvar("arg_a_ref"), tvar("arg_b_ref")]),
                     ),
-                    cons(tvar("fn_ref"), tvar("fn_type")),
-                    cons(
+                    (tvar("fn_ref"), tvar("fn_type")),
+                    (
                         tvar("fn_type"),
                         Ttype::Fn(vec![tvar("arg_a"), tvar("arg_b"), tvar("rec_call_expr")]),
                     ),
@@ -410,11 +387,11 @@ mod tests {
             tvar("call_expr")
         ));
 
-        let mut cons_set: HashSet<Constraint> = HashSet::new();
+        let mut set: HashSet<Constraint> = HashSet::new();
         for c in cg.constraints {
-            cons_set.insert(c);
+            set.insert(c);
         }
-        assert!(cons_set.contains(&cons(tvar("call_expr"), tvar("fn_ret"))))
+        assert!(set.contains(&(tvar("call_expr"), tvar("fn_ret"))))
     }
 
     #[test]
@@ -430,12 +407,10 @@ mod tests {
             tvar("call_expr")
         ));
 
-        // println!("constraints {:?} {:?}", cg.constraints, cg.env);
-        // panic!();
         assert_eq_unordered::<Constraint>(
             vec![
-                cons(tvar("fn_ref"), Ttype::Fn(vec![tint(), tint()])),
-                cons(tvar("call_expr"), tint()),
+                (tvar("fn_ref"), Ttype::Fn(vec![tint(), tint()])),
+                (tvar("call_expr"), tint()),
             ],
             cg.constraints,
         );

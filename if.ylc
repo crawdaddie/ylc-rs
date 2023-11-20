@@ -1,10 +1,10 @@
-let x = fn (y) {
-  if y <= 1 {
-    1 + 2
+let f = fn (arg) {
+  if arg <= 1 {
+    arg + 2
   } else {
-    3 + 4
+    arg + 7
   }
 }
 
 
-x(-1)
+f(-1)

@@ -121,45 +121,6 @@ impl Ttype {
             _ => self.is_var(),
         }
     }
-
-    pub fn transform_generic(&self, application_types: Vec<Ttype>) -> Self {
-        let mut t = self.clone();
-        match self {
-            Ttype::Fn(gen_ts) => {
-                for (member, app) in gen_ts.iter().zip(application_types) {
-                    if member.is_var() {
-                        t = t.substitute(&member, &app);
-                    }
-                }
-                t
-            }
-            _ => self.clone(),
-        }
-    }
-
-    pub fn substitute(&self, mem: &Ttype, sub: &Ttype) -> Self {
-        match self {
-            Ttype::Fn(t) => {
-                let tt = t.iter().map(|v| v.substitute(mem, sub)).collect();
-                Ttype::Fn(tt)
-            }
-
-            Ttype::Tuple(t) => {
-                let tt = t.iter().map(|v| v.substitute(mem, sub)).collect();
-                Ttype::Tuple(tt)
-            }
-
-            Ttype::MaxNumeric(ts) => {
-                Ttype::MaxNumeric(ts.iter().map(|t| t.substitute(mem, sub)).collect())
-            }
-            Ttype::Array(t) => Ttype::Array(Box::new(t.substitute(mem, sub))),
-            Ttype::Var(_) if self == mem => {
-                // println!("substitute {:?} {:?} {:?}", self, mem, sub);
-                sub.clone()
-            }
-            _ => self.clone(),
-        }
-    }
 }
 
 pub fn tint8() -> Ttype {
@@ -291,7 +252,7 @@ mod tests {
 
     #[test]
     fn generic_type_transformation() {
-        let generic_fn_type = Ttype::Fn(vec![
+        let mut generic_fn_type = Ttype::Fn(vec![
             tvar("t0"),
             Ttype::MaxNumeric(vec![tvar("t0"), tint()]),
         ]);
@@ -305,13 +266,13 @@ mod tests {
 
     #[test]
     fn generic_type_transformation_more_complex() {
-        let generic_fn_type = Ttype::Fn(vec![
-            tvar("t0"),
-            tvar("t1"),
+        let mut generic_fn_type = Ttype::Fn(vec![
+            tvar("a"),
+            tvar("b"),
             Ttype::Tuple(vec![
-                tvar("t0"),
+                tvar("a"),
                 tint(),
-                Ttype::Tuple(vec![tint(), tvar("t1")]),
+                Ttype::Tuple(vec![tint(), tvar("b")]),
             ]),
         ]);
         let application_types = vec![tint(), tnum()];
