@@ -1,6 +1,6 @@
 use crate::{
     parser::{Ast, Program},
-    symbols::Ttype,
+    symbols::{Env, Environment, Symbol, Ttype},
     typecheck::unify::{lookup_contained_types, Substitutions},
 };
 
@@ -14,10 +14,13 @@ pub fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
     *t = lookup_contained_types(t.clone(), subs);
 }
 
-fn update_types(ast: &mut Ast, subs: &Substitutions) {
+fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) {
     match ast {
-        Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs),
-        Ast::FnDeclaration(_id, fn_expr) => update_types(&mut *fn_expr, subs),
+        Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs, env),
+        Ast::FnDeclaration(id, fn_expr) => {
+            update_types(&mut *fn_expr, subs, env);
+            env.bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()))
+        }
         Ast::TypeDeclaration(_id, _type_expr) => {}
         Ast::Id(_id, ttype) => {
             apply_substitution(ttype, subs);
@@ -26,10 +29,10 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
         Ast::Fn(params_vec, body, ttype) => {
             apply_substitution(ttype, subs);
             for p in params_vec {
-                update_types(p, subs);
+                update_types(p, subs, env);
             }
             for s in body {
-                update_types(s, subs);
+                update_types(s, subs, env);
             }
         }
 
@@ -37,52 +40,63 @@ fn update_types(ast: &mut Ast, subs: &Substitutions) {
             apply_substitution(ttype, subs);
 
             // self.binop(token.clone(), &*left_box, &*right_box, ttype.clone());
-            update_types(&mut *left_box, subs);
-            update_types(&mut *right_box, subs);
+            update_types(&mut *left_box, subs, env);
+            update_types(&mut *right_box, subs, env);
         }
 
         Ast::Unop(_token, operand_box, ttype) => {
             apply_substitution(ttype, subs);
-            update_types(&mut *operand_box, subs);
+            update_types(&mut *operand_box, subs, env);
         }
 
         Ast::Tuple(exprs_vec, ttype) => {
             apply_substitution(ttype, subs);
             for x in exprs_vec {
-                update_types(x, subs);
+                update_types(x, subs, env);
             }
         }
 
         Ast::Index(object_box, index_box, ttype) => {
             apply_substitution(ttype, subs);
-            update_types(&mut *object_box, subs);
-            update_types(&mut *index_box, subs);
+            update_types(&mut *object_box, subs, env);
+            update_types(&mut *index_box, subs, env);
         }
 
         Ast::Assignment(assignee_box, value_box, ttype) => {
             apply_substitution(ttype, subs);
-            update_types(&mut *assignee_box, subs);
-            update_types(&mut *value_box, subs);
+            update_types(&mut *assignee_box, subs, env);
+            update_types(&mut *value_box, subs, env);
         }
         Ast::If(condition, then, elze, ttype) => {
             apply_substitution(ttype, subs);
-            update_types(&mut *condition, subs);
+            update_types(&mut *condition, subs, env);
             for t in then {
-                update_types(t, subs);
+                update_types(t, subs, env);
             }
             if let Some(e) = elze {
                 for t in e {
-                    update_types(t, subs);
+                    update_types(t, subs, env);
                 }
             }
         }
-        Ast::Call(callee_box, params_vec, ttype) => {
-            apply_substitution(ttype, subs);
-            update_types(&mut *callee_box, subs);
+        Ast::Call(callee_box, ref mut params_vec, ttype) => {
+            update_types(&mut *callee_box, subs, env);
 
-            for a in params_vec {
-                update_types(a, subs);
+            for a in &mut *params_vec {
+                update_types(a, subs, env);
             }
+
+            if let Ast::Id(fn_name, _) = *callee_box.clone() {
+                println!("lookup fn call {:?} in {:?}", fn_name, env);
+
+                if let Some(Symbol::Function(fn_type)) = env.lookup(fn_name) {
+                    println!(
+                        "update types {:?} ({:?}) {:?} {:?}",
+                        callee_box, fn_type, params_vec, ttype
+                    );
+                }
+            }
+            apply_substitution(ttype, subs);
             // update_callable(&mut *callee_box, params_vec);
             // println!("update {:?} {:?}", callee_box, ttype);
             // if let Ast::Id(callable, ttype) = *callee_box {}
@@ -109,13 +123,15 @@ pub fn infer_types(expr: &mut Program) {
     }
     println!("\x1b[1;0m");
 
+    let mut env = Env::<Symbol>::new();
+    env.push();
     for e in expr {
-        update_types(e, &subs);
+        update_types(e, &subs, &mut env);
     }
 }
 #[cfg(test)]
 mod tests {
-    use crate::{int_expr, lexer::Lexer, parser::Parser};
+    use crate::{int_expr, lexer::Lexer, parser::Parser, symbols::tint};
 
     use super::*;
 
@@ -148,6 +164,42 @@ mod tests {
             assert!(fn_types.len() == 5);
             assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
             assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
+        }
+    }
+    #[test]
+    fn if_function() {
+        let input = r#"
+        let f = fn (arg) {
+          if arg <= 1 {
+            arg + 2
+          } else {
+            arg + 7
+          }
+        }
+        f(-1)
+        "#;
+
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let mut program = parser.parse_program();
+        infer_types(&mut program);
+
+        if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
+            let mut fn_types = vec![];
+            if let Ast::Id(_, fn_type) = *fn_id {
+                if let Ttype::Fn(fn_types_vec) = fn_type {
+                    fn_types = fn_types_vec;
+                } else {
+                    panic!()
+                }
+            };
+            if fn_types.is_empty() {
+                panic!()
+            }
+
+            println!("if func {:?}", fn_types);
+            assert_eq!(fn_types, vec![tint(), tint()]);
+            // assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
+            // assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
         }
     }
 

@@ -92,13 +92,14 @@ impl ConstraintGenerator {
         call_args: &Vec<Ast>,
     ) -> Ttype {
         match self.get_function_type(callable_id.clone()) {
-            Some(fn_type) if fn_type.is_generic() => {
-                let arg_types: Vec<Ttype> = call_args.iter().map(|a| a.ttype()).collect();
-                let fn_type_trans = fn_type.clone().transform_generic(arg_types);
-                self.push_constraint(callable_type.clone(), fn_type_trans.clone());
-                fn_type_trans
-            }
-
+            // Some(fn_type) if fn_type.is_generic() => {
+            //     let arg_types: Vec<Ttype> = call_args.iter().map(|a| a.ttype()).collect();
+            //     let fn_type_trans = fn_type.clone().transform_generic(arg_types);
+            //
+            //     self.push_constraint(callable_type.clone(), fn_type_trans.clone());
+            //     fn_type_trans
+            // }
+            //
             Some(fn_type) => {
                 let f = fn_type.clone();
                 self.push_constraint(callable_type.clone(), f.clone());

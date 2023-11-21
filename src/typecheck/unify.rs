@@ -85,7 +85,11 @@ impl Ttype {
 
     pub fn transform_generic(&mut self, application_types: Vec<Ttype>) -> Self {
         let mut t = self.clone();
-        t.transform_generic_inplace(application_types);
+        t.transform_generic_inplace(application_types.clone());
+        println!(
+            "transformed {:?} to {:?} with {:?}",
+            self, t, application_types
+        );
         t
     }
     pub fn transform_generic_inplace(&mut self, application_types: Vec<Ttype>) {
