@@ -11,9 +11,6 @@ use constraints::ConstraintGenerator;
 use unify::unify_constraints;
 
 pub fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
-    let lookup = lookup_contained_types(t.clone(), subs);
-
-    println!("apply sub {:?} - lookup {:?}", t, lookup);
     *t = lookup_contained_types(t.clone(), subs);
 }
 
@@ -98,7 +95,7 @@ pub fn infer_types(expr: &mut Program) {
     for e in expr.clone() {
         cg.generate_constraints(&e);
     }
-
+    println!("constraints\n--------");
     for c in &cg.constraints {
         println!("{:?}", c);
     }

@@ -1,6 +1,6 @@
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
-use crate::symbols::{max_numeric_type, Env, Numeric, Symbol, Ttype};
+use crate::symbols::{max_numeric_type, Env, Environment, Numeric, Symbol, Ttype};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 mod conditional;
@@ -92,60 +92,50 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match ttype {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
-            Ttype::Application(f, application_types, fn_type) => {
-                if let Ttype::Fn(fn_type) = *fn_type {
-                    println!(
-                        "app return:\nf {:?}\napp_types {:?}\nfn_type {:?}",
-                        f, application_types, fn_type
-                    );
-                    self.type_to_llvm_fn((*fn_type).last().unwrap().clone())
-                } else {
-                    self.context.void_type().fn_type(&[], false)
-                }
-            }
             _ => self.context.void_type().fn_type(&[], false),
         }
     }
-    fn get_main_fn_type(&self, program: &Program) -> FunctionType<'ctx> {
-        let last_stmt = program.last().unwrap();
-        println!("last: {:?}", last_stmt);
-        let t = last_stmt.get_ttype().unwrap();
-
-        match (&t, last_stmt) {
-            (Ttype::Str, Ast::String(s)) => self
-                .context
-                .i8_type()
-                .array_type(s.len() as u32)
-                .fn_type(&[], false),
-            (_, Ast::Call(callable, args, app_type)) => {
-                // JANKY
-                if let (
-                    Ast::Id(callable_id, fn_type),
-                    Ttype::Application(_, application_types, _),
-                ) = ((**callable).clone(), app_type)
-                {
-                    if let Ttype::Fn(fn_types) =
-                        fn_type.transform_generic(application_types.to_vec())
-                    {
-                        self.type_to_llvm_fn(fn_types.last().unwrap().clone())
-                    } else {
-                        self.type_to_llvm_fn(t)
-                    }
-                } else {
-                    self.type_to_llvm_fn(t)
-                }
-            }
-            (_, _) => self.type_to_llvm_fn(t),
-        }
-    }
+    // fn get_main_fn_type(&self, program: &Program) -> FunctionType<'ctx> {
+    //     let last_stmt = program.last().unwrap();
+    //     println!("last: {:?}", last_stmt);
+    //     let t = last_stmt.ttype();
+    //
+    //     match (&t, last_stmt) {
+    //         (Ttype::Str, Ast::String(s)) => self
+    //             .context
+    //             .i8_type()
+    //             .array_type(s.len() as u32)
+    //             .fn_type(&[], false),
+    //         (_, Ast::Call(callable, args, app_type)) => {
+    //             // JANKY
+    //             if let (
+    //                 Ast::Id(callable_id, fn_type),
+    //                 Ttype::Application(_, application_types, _),
+    //             ) = ((**callable).clone(), app_type)
+    //             {
+    //                 if let Ttype::Fn(fn_types) =
+    //                     fn_type.transform_generic(application_types.to_vec())
+    //                 {
+    //                     self.type_to_llvm_fn(fn_types.last().unwrap().clone())
+    //                 } else {
+    //                     self.type_to_llvm_fn(t)
+    //                 }
+    //             } else {
+    //                 self.type_to_llvm_fn(t)
+    //             }
+    //         }
+    //         (_, _) => self.type_to_llvm_fn(t),
+    //     }
+    // }
 
     fn compile_program(
         &mut self,
         program: &Program,
     ) -> Result<(FunctionValue<'ctx>, AnyTypeEnum<'ctx>), &'ctx str> {
-        let main_fn_type = self.get_main_fn_type(program);
-        println!("main fn type {:?}", main_fn_type.get_return_type());
-        let main_fn = self.module.add_function("main", main_fn_type, None);
+        println!("last ttype: {:?}", program.last().unwrap().ttype());
+        let main_fn =
+            self.module
+                .add_function("main", self.context.void_type().fn_type(&[], false), None);
 
         let basic_block = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(basic_block);
@@ -202,10 +192,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match token {
             Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Modulo => {
                 if let Ttype::Numeric(desired_cast) = ttype {
-                    if ttype.is_num() {
-                        l = self.cast_numeric(l, desired_cast);
-                        r = self.cast_numeric(r, desired_cast);
-                    }
+                    l = self.cast_numeric(l, desired_cast);
+                    r = self.cast_numeric(r, desired_cast);
                     self.codegen_numeric_binop(token, l, r, desired_cast)
                 } else {
                     match (l, r) {
@@ -231,22 +219,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
             }
             Token::Equality | Token::Gt | Token::Gte | Token::Lt | Token::Lte => {
-                let ltype = left.get_ttype().unwrap();
-                let rtype = left.get_ttype().unwrap();
-                if let Some(max_type) = max_numeric_type(ltype, rtype) {
-                    if let Ttype::Numeric(desired_cast) = max_type {
-                        let mut l = to_basic_value_enum(self.codegen(left).unwrap());
-                        let mut r = to_basic_value_enum(self.codegen(right).unwrap());
-                        if max_type.is_num() {
-                            l = self.cast_numeric(l, desired_cast);
-                            r = self.cast_numeric(r, desired_cast);
-                        };
-                        self.codegen_numeric_comparison(token, l, r, desired_cast)
-                    } else {
-                        panic!("attempt to compare values with non-numeric types")
-                    }
+                let ltype = left.ttype();
+                let rtype = left.ttype();
+                let max_type = max_numeric_type(ltype, rtype);
+                if let Ttype::Numeric(desired_cast) = max_type {
+                    let mut l = to_basic_value_enum(self.codegen(left).unwrap());
+                    let mut r = to_basic_value_enum(self.codegen(right).unwrap());
+                    l = self.cast_numeric(l, desired_cast);
+                    r = self.cast_numeric(r, desired_cast);
+                    self.codegen_numeric_comparison(token, l, r, desired_cast)
                 } else {
-                    panic!()
+                    panic!("attempt to compare values with non-numeric types")
                 }
             }
             _ => None,
@@ -271,12 +254,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             ) => {
                 let llvm_value = self.codegen(value);
                 self.env
-                    .bind_symbol(id.clone(), Symbol::Variable(value.get_ttype().unwrap()));
+                    .bind_symbol(id.clone(), Symbol::Variable(value.ttype()));
                 llvm_value
             }
 
             Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
-                Ast::Fn(params, return_type, body, fn_type) if fn_type.is_generic() => {
+                Ast::Fn(params, body, fn_type) if fn_type.is_generic() => {
                     self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
                     self.generic_fns.insert(
                         id.clone(),
@@ -287,10 +270,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     );
                     None
                 }
-                Ast::Fn(params, return_type, body, fn_type) => {
-                    let func = self.codegen_fn(id, &params, return_type, body, fn_type);
+                Ast::Fn(params, body, fn_type) => {
+                    let func = self.codegen_fn(id, &params, body, fn_type);
                     self.env
-                        .bind_symbol(id.clone(), Symbol::Function(fn_expr.get_ttype().unwrap()));
+                        .bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()));
 
                     func.map(|f| f.as_any_value_enum())
                 }
@@ -322,7 +305,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Unop(token, operand, ttype) => match token {
                 Token::Minus => {
                     let op = to_basic_value_enum(self.codegen(operand).unwrap());
-                    if ttype.is_num() {
+                    if ttype.is_numeric() {
                         let zero = self.context.f64_type().const_float(0.0);
                         Some(
                             self.builder
@@ -352,44 +335,42 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Tuple(_exprs, _ttype) => None,
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
-            Ast::Fn(_params, _ret_type, _body, _ttype) => None,
-            Ast::Call(callable, args, application_types)
-                if callable.get_ttype().unwrap().is_generic() =>
-            {
-                if let (
-                    Ast::Id(callable_id, fn_type),
-                    Ttype::Application(_, application_types, _),
-                ) = ((**callable).clone(), application_types)
-                {
-                    let fn_type = fn_type.transform_generic(application_types.to_vec());
-
-                    match self.get_generic_function(callable_id.as_str(), fn_type.clone()) {
-                        Some(fn_value) => self.compile_call(fn_value, args),
-                        None => {
-                            let g = self.get_generic(callable_id.as_str());
-                            if let Ast::Fn(params, return_type, body, _) = g.ast.clone() {
-                                let fn_value = self.codegen_fn(
-                                    self.generic_variant_name(
-                                        callable_id.as_str(),
-                                        fn_type.clone(),
-                                    )
-                                    .as_str(),
-                                    &params,
-                                    return_type,
-                                    body,
-                                    fn_type.clone(),
-                                );
-                                self.add_generic_function(callable_id.as_str(), fn_type);
-                                self.compile_call(fn_value.unwrap(), args)
-                            } else {
-                                None
-                            }
-                        }
-                    }
-                } else {
-                    None
-                }
-            }
+            Ast::Fn(_params, _body, _ttype) => None,
+            // Ast::Call(callable, args, application_types) if callable.ttype().is_generic() => {
+            //     if let (
+            //         Ast::Id(callable_id, fn_type),
+            //         Ttype::Application(_, application_types, _),
+            //     ) = ((**callable).clone(), application_types)
+            //     {
+            //         let fn_type = fn_type.transform_generic(application_types.to_vec());
+            //
+            //         match self.get_generic_function(callable_id.as_str(), fn_type.clone()) {
+            //             Some(fn_value) => self.compile_call(fn_value, args),
+            //             None => {
+            //                 let g = self.get_generic(callable_id.as_str());
+            //                 if let Ast::Fn(params, body, _) = g.ast.clone() {
+            //                     let fn_value = self.codegen_fn(
+            //                         self.generic_variant_name(
+            //                             callable_id.as_str(),
+            //                             fn_type.clone(),
+            //                         )
+            //                         .as_str(),
+            //                         &params,
+            //                         return_type,
+            //                         body,
+            //                         fn_type.clone(),
+            //                     );
+            //                     self.add_generic_function(callable_id.as_str(), fn_type);
+            //                     self.compile_call(fn_value.unwrap(), args)
+            //                 } else {
+            //                     None
+            //                 }
+            //             }
+            //         }
+            //     } else {
+            //         None
+            //     }
+            // }
             Ast::Call(callable, args, _) => {
                 let fn_value = self.codegen(&callable).map(|v| v.into_function_value());
 

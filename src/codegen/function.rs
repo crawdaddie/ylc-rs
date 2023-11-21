@@ -7,7 +7,7 @@ use inkwell::IntPredicate;
 use super::{to_basic_value_enum, Compiler, GenericFns};
 
 use crate::parser::{Ast, Program};
-use crate::symbols::{Env, Numeric, Symbol, Ttype};
+use crate::symbols::{Env, Environment, Numeric, Symbol, Ttype};
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num
@@ -23,7 +23,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.generic_fns.get_mut(name).unwrap()
     }
     pub fn generic_variant_name(&self, name: &str, t: Ttype) -> String {
-        format!("{}_{}", name, t.mangle_name())
+        // format!("{}_{}", name, t.mangle_name())
+        "".to_string()
     }
 
     pub fn get_generic_function(
@@ -75,7 +76,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     is_var_arg = true;
                 }
                 Ast::Id(_, _) => {
-                    param_types.push(self.get_type_enum(p.get_ttype().unwrap()));
+                    param_types.push(self.get_type_enum(p.ttype()));
                 }
                 _ => {}
             }
@@ -113,7 +114,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         name: &str,
         params: &Vec<Ast>,
-        _return_type: Option<Ttype>,
         body: Vec<Ast>,
         ttype: Ttype,
     ) -> Option<FunctionValue<'ctx>> {
