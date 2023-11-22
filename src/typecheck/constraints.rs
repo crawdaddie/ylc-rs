@@ -50,11 +50,11 @@ impl ConstraintGenerator {
 
         fin.ttype()
     }
-    fn fn_declaration(&mut self, id: &String, fn_expr: &Ast) {
+    fn fn_declaration(&mut self, id: &str, fn_expr: &Ast) {
         self.env
-            .bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype())); // bind symbol as early as
-                                                                         // possible - in the stack
-                                                                         // of the function this type will be available as a recursive reference
+            .bind_symbol(id.to_owned(), Symbol::Function(fn_expr.ttype())); // bind symbol as early as
+                                                                            // possible - in the stack
+                                                                            // of the function this type will be available as a recursive reference
         self.env.push();
 
         match fn_expr {
@@ -136,13 +136,13 @@ impl ConstraintGenerator {
             }
 
             Ast::Let(
-                id,
+                _id,
                 None, // optional explicit type parameter
                 None, // optional immediate assignment expression
             ) => {}
 
-            Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id, &**fn_expr),
-            Ast::TypeDeclaration(id, type_expr) => {}
+            Ast::FnDeclaration(id, fn_expr) => self.fn_declaration(id, fn_expr),
+            Ast::TypeDeclaration(_id, _type_expr) => {}
             Ast::Id(id, ttype) => {
                 self.id(id, ttype);
             }
@@ -184,8 +184,8 @@ impl ConstraintGenerator {
                     _ => {}
                 }
             }
-            Ast::Tuple(exprs, ttype) => {}
-            Ast::Index(obj, idx, ttype) => {
+            Ast::Tuple(_exprs, _ttype) => {}
+            Ast::Index(obj, idx, _ttype) => {
                 self.generate_constraints(obj);
                 self.generate_constraints(idx);
                 self.push_constraint(idx.ttype(), tint());

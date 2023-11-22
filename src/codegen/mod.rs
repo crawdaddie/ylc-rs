@@ -1,8 +1,8 @@
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Environment, Numeric, Symbol, Ttype};
-use std::collections::{HashMap, HashSet};
-use std::error::Error;
+use std::collections::{HashMap};
+
 mod conditional;
 mod function;
 mod numeric_binop;
@@ -12,12 +12,11 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{AnyTypeEnum, ArrayType, BasicType, BasicTypeEnum, FunctionType};
+use inkwell::types::{BasicType, FunctionType};
 use inkwell::values::{
-    AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
-    PointerValue,
+    AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue,
 };
-use inkwell::AddressSpace;
+
 
 #[derive(Debug)]
 pub struct GenericFns {
@@ -109,7 +108,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let mut v = None;
         for stmt in program {
-            v = self.codegen(&stmt);
+            v = self.codegen(stmt);
         }
 
         if let Some(v) = v {
@@ -133,8 +132,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .builder
                 .build_signed_int_to_float(i, self.context.f64_type(), "int_to_float_cast")
                 .as_basic_value_enum(),
-            BasicValueEnum::IntValue(i) => x,
-            BasicValueEnum::FloatValue(f) => x,
+            BasicValueEnum::IntValue(_i) => x,
+            BasicValueEnum::FloatValue(_f) => x,
             _ => panic!(
                 "Unknown numeric type {:?} to cast to {:?}",
                 x.get_type(),
@@ -221,7 +220,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
 
             Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
-                Ast::Fn(params, body, fn_type) if fn_type.is_generic() => {
+                Ast::Fn(_params, _body, fn_type) if fn_type.is_generic() => {
                     self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
 
                     self.generic_fns.insert(
@@ -244,15 +243,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             Ast::TypeDeclaration(_id, _type_expr) => None,
 
-            Ast::Id(id, ttype) => {
+            Ast::Id(id, _ttype) => {
                 if let Some(sym) = self.env.lookup(id.clone()) {
                     match sym {
-                        Symbol::FnParam(idx, ttype) => {
+                        Symbol::FnParam(idx, _ttype) => {
                             let current_fn = self.current_fn().unwrap();
                             current_fn.get_nth_param(*idx).map(|e| e.into())
                         }
 
-                        Symbol::Function(fn_type) => self.get_function(&id).map(|f| f.into()),
+                        Symbol::Function(_fn_type) => self.get_function(id).map(|f| f.into()),
                         Symbol::RecursiveRef => self.current_fn().map(|f| f.as_any_value_enum()),
                         _ => None,
                     }
@@ -333,7 +332,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             //         None
             //     }
             // }
-            Ast::Call(callable, args, ttype) => match *callable.clone() {
+            Ast::Call(callable, args, _ttype) => match *callable.clone() {
                 Ast::Id(fn_name, specific_type) => {
                     let callable = self.get_callable(fn_name, &specific_type);
                     self.compile_call(callable.unwrap(), args)

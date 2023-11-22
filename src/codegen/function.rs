@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 
-use inkwell::types::{BasicMetadataTypeEnum, BasicType};
+use inkwell::types::BasicType;
 use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum, FunctionValue,
 };
-use inkwell::IntPredicate;
 
 use super::{to_basic_value_enum, Compiler, GenericFns};
 
-use crate::parser::{Ast, Program};
-use crate::symbols::{Env, Environment, Numeric, Symbol, Ttype};
+use crate::parser::Ast;
+use crate::symbols::{Environment, Numeric, Symbol, Ttype};
 use crate::typecheck::update_types;
 
 fn is_num(n: Numeric) -> bool {
@@ -20,10 +19,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     #[inline]
     pub fn get_function(&self, name: &str) -> Option<FunctionValue<'ctx>> {
         self.module.get_function(name)
-    }
-
-    pub fn get_generic(&mut self, name: &str) -> &mut GenericFns {
-        self.generic_fns.get_mut(name).unwrap()
     }
 
     pub fn generic_variant_name(&self, name: &str, t: &Ttype) -> String {
@@ -140,9 +135,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         for x in body {
             v = self.codegen(&x);
         }
-
-        if v.is_some() {
-            self.add_return_value(v.unwrap());
+        if let Some(v) = v {
+            self.add_return_value(v);
         } else {
             self.builder.build_return(None);
         }
@@ -208,7 +202,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     }
                 }
             }
-            Some(Symbol::Function(fn_type)) => self.get_function(&fn_name),
+            Some(Symbol::Function(_fn_type)) => self.get_function(&fn_name),
             _ => panic!(),
         }
     }
@@ -216,7 +210,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn compile_call(
         &mut self,
         callable_fn: FunctionValue<'ctx>,
-        args: &Vec<Ast>,
+        args: &[Ast],
     ) -> Option<AnyValueEnum<'ctx>> {
         let compiled_args: Vec<BasicValueEnum> = args
             .iter()

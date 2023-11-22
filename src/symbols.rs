@@ -30,12 +30,6 @@ pub enum Ttype {
     Union(Vec<Ttype>),
 }
 
-impl Ttype {
-    fn mangle_name(&self) {
-        // format("{}_{}")
-    }
-}
-
 impl fmt::Debug for Ttype {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

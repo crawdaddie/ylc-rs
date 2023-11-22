@@ -53,7 +53,7 @@ fn compile_program(program: &Program) {
     fpm.add_instruction_combining_pass();
     fpm.add_reassociate_pass();
     fpm.initialize();
-    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, &program) {
+    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, program) {
         module.print_to_stderr();
         let ee = module
             .create_jit_execution_engine(OptimizationLevel::None)
@@ -62,12 +62,12 @@ fn compile_program(program: &Program) {
         let name = main_fn.get_name().to_str().unwrap().to_string();
         let ret_type = main_fn.get_type().get_return_type();
         match ret_type {
-            Some(BasicTypeEnum::IntType(i)) => unsafe {
+            Some(BasicTypeEnum::IntType(_i)) => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
 
-            Some(BasicTypeEnum::FloatType(f)) => unsafe {
+            Some(BasicTypeEnum::FloatType(_f)) => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },

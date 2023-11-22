@@ -187,7 +187,7 @@ mod tests {
         let mut program = parser.parse_program();
         infer_types(&mut program);
 
-        if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
+        if let Ast::Call(fn_id, _args, _ttype) = program[1].clone() {
             let mut fn_types = vec![];
             if let Ast::Id(_, fn_type) = *fn_id {
                 if let Ttype::Fn(fn_types_vec) = fn_type {

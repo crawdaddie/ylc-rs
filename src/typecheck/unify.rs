@@ -1,6 +1,6 @@
 use super::constraints::Constraint;
 use crate::{
-    symbols::{max_numeric_type, max_numeric_types, Ttype},
+    symbols::{max_numeric_types, Ttype},
     typecheck::apply_substitution,
 };
 use std::{collections::HashMap, iter::zip};
@@ -8,7 +8,7 @@ use std::{collections::HashMap, iter::zip};
 pub type Substitutions = HashMap<Ttype, Ttype>;
 pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
     match &t {
-        Ttype::Var(t_name) => {
+        Ttype::Var(_t_name) => {
             if let Some(t_lookup) = subs.get(&t) {
                 lookup_contained_types(t_lookup.clone(), subs)
             } else {
@@ -124,9 +124,9 @@ pub fn unify(l: &Ttype, r: &Ttype, subs: &mut Substitutions) {
         (Ttype::Array(l), Ttype::Array(r)) => {
             unify(l, r, subs);
         }
-        (Ttype::Var(v), _) => {
+        (Ttype::Var(_v), _) => {
             if !l.occurs_in(r, subs) {
-                if let Some(sub) = subs.clone().get(&r) {
+                if let Some(sub) = subs.clone().get(r) {
                     // println!("found sub {:?} for l {:?}", sub, l);
                     unify(l, sub, subs)
                 } else {
@@ -135,9 +135,9 @@ pub fn unify(l: &Ttype, r: &Ttype, subs: &mut Substitutions) {
                 }
             }
         }
-        (_, Ttype::Var(v)) => {
+        (_, Ttype::Var(_v)) => {
             if !r.occurs_in(l, subs) {
-                if let Some(sub) = subs.clone().get(&l) {
+                if let Some(sub) = subs.clone().get(l) {
                     unify(r, sub, subs)
                 } else {
                     // println!("save {:?}::{:?} subs {:?}", l, r, subs);
@@ -159,7 +159,7 @@ pub fn unify_constraints(constraints: Vec<Constraint>, subs: &mut Substitutions)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::symbols::{tbool, tint, tvar, Numeric};
+    use crate::symbols::{tbool, tint, tvar};
     pub type Subs<'a> = HashMap<Ttype, &'a Ttype>;
 
     #[test]

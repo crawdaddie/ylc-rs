@@ -4,8 +4,8 @@ use inkwell::{FloatPredicate, IntPredicate};
 use super::Compiler;
 
 use crate::lexer::Token;
-use crate::parser::{Ast, Program};
-use crate::symbols::{Env, Numeric, Symbol, Ttype};
+
+use crate::symbols::{Numeric};
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num

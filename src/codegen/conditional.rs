@@ -10,7 +10,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         condition: IntValue<'ctx>,
         then: &Vec<Ast>,
         elze: &Option<Vec<Ast>>,
-        ttype: Ttype,
+        _ttype: Ttype,
     ) -> Option<AnyValueEnum<'ctx>> {
         let parent = self.current_fn()?;
 

@@ -1,13 +1,13 @@
-use std::convert::Infallible;
 
-use inkwell::types::{BasicMetadataTypeEnum, BasicType};
-use inkwell::values::{AnyValue, AnyValueEnum, BasicValueEnum, FunctionValue};
-use inkwell::IntPredicate;
+
+use inkwell::types::{BasicMetadataTypeEnum};
+
+
 
 use super::Compiler;
 
-use crate::parser::{Ast, Program};
-use crate::symbols::{Env, Numeric, Symbol, Ttype};
+
+use crate::symbols::{Numeric, Ttype};
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn get_type_enum(&self, t: Ttype) -> BasicMetadataTypeEnum<'ctx> {
         match t {
