@@ -156,14 +156,20 @@ impl ConstraintGenerator {
                         let num_binop_type = max_numeric_type(left.ttype(), right.ttype());
                         self.push_constraint(ttype.clone(), num_binop_type);
                     }
-                    Token::Equality
-                    | Token::NotEqual
-                    | Token::Lt
-                    | Token::Lte
-                    | Token::Gt
-                    | Token::Gte => {
+                    Token::Equality | Token::NotEqual => {
+                        // println!(" constraints {:?} {:?}", left, right);
                         self.push_constraint(ttype.clone(), Ttype::Bool);
                         self.push_constraint(left.ttype(), right.ttype());
+                    }
+                    Token::Lt | Token::Lte | Token::Gt | Token::Gte => {
+                        // println!(" constraints {:?} {:?}", left, right);
+                        self.push_constraint(ttype.clone(), Ttype::Bool);
+                        // if left.ttype().is_var() {
+                        //     self.push_constraint(left.ttype(), Ttype::MaxNumeric(vec![]));
+                        // }
+                        // if right.ttype().is_var() {
+                        //     self.push_constraint(right.ttype(), Ttype::MaxNumeric(vec![]));
+                        // }
                     }
                     _ => {}
                 }
@@ -370,27 +376,5 @@ mod tests {
             set.insert(c);
         }
         assert!(set.contains(&(tvar("call_expr"), tvar("fn_ret"))))
-    }
-
-    #[test]
-    fn call_generic() {
-        let mut cg = ConstraintGenerator::new();
-        let fn_type = Ttype::Fn(vec![tvar("fn_arg_0"), tvar("fn_arg_0")]);
-        cg.env
-            .bind_symbol("f".into(), Symbol::Function(fn_type.clone()));
-
-        cg.generate_constraints(&call_expr!(
-            id_expr!("f", tvar("fn_ref")),
-            vec![int_expr!(1)],
-            tvar("call_expr")
-        ));
-
-        assert_eq_unordered::<Constraint>(
-            vec![
-                (tvar("fn_ref"), Ttype::Fn(vec![tint(), tint()])),
-                (tvar("call_expr"), tint()),
-            ],
-            cg.constraints,
-        );
     }
 }

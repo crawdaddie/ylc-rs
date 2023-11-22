@@ -30,26 +30,12 @@ pub enum Ttype {
     Union(Vec<Ttype>),
 }
 
-pub fn transform_generic_vec(og: Vec<Ttype>, sub: Vec<Ttype>) -> Vec<Ttype> {
-    let mut map: HashMap<Ttype, Ttype> = HashMap::new();
-    for (sub, mem) in sub.iter().zip(og.clone()) {
-        // println!("{:?}::{:?}", mem, sub);
-        map.insert(mem, sub.clone());
+impl Ttype {
+    fn mangle_name(&self) {
+        // format("{}_{}")
     }
-    println!("association map: {:?}", map);
-    // og.cloe()
-    // og.clone()
-    let mut tr = vec![];
-    for m in og {
-        if let Some(s) = map.get(&m) {
-            tr.push(m.substitute(&m, s));
-            // println!("substituted {:?}", tr);
-        } else {
-            tr.push(m)
-        }
-    }
-    tr
 }
+
 impl fmt::Debug for Ttype {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -119,6 +105,12 @@ impl Ttype {
 
             Ttype::Array(ts) => ts.is_generic(),
             _ => self.is_var(),
+        }
+    }
+    pub fn contained_types(&self) -> Vec<Ttype> {
+        match self {
+            Ttype::Fn(ts) | Ttype::Tuple(ts) => ts.to_vec(),
+            _ => panic!(),
         }
     }
 }
@@ -209,39 +201,55 @@ pub fn max_numeric_type(l: Ttype, r: Ttype) -> Ttype {
         (l, r) => Ttype::MaxNumeric(vec![l, r]),
     }
 }
-
+/// reduces a MaxNumeric type to either maximum of concrete types + any generics
+/// or the maximum of the concrete types
 pub fn max_numeric_types(ts: Vec<Ttype>) -> Ttype {
     let (numeric, generic): (Vec<Ttype>, Vec<Ttype>) = ts.into_iter().partition(|x| x.is_numeric());
-    let max_numeric = numeric
+
+    let max_numeric = *numeric
         .iter()
         .map(|x| match x {
             Ttype::Numeric(vt) => vt,
             _ => panic!(),
         })
         .max()
-        .unwrap()
-        .clone();
-    let mut types = vec![Ttype::Numeric(max_numeric)];
+        .unwrap();
 
-    for g in generic {
-        types.push(g)
-    }
-    if types.len() == 1 && types[0].is_numeric() {
-        types[0].clone()
+    if generic.is_empty() {
+        Ttype::Numeric(max_numeric)
     } else {
+        let mut types = vec![Ttype::Numeric(max_numeric)];
+
+        for g in generic {
+            types.push(g)
+        }
+
         Ttype::MaxNumeric(types)
     }
 }
+
+// pub fn max_numeric(ts: Ttype) -> Ttype {
+//     if let Ttype::MaxNumeric(ts) = ts {
+//         let m = max_numeric_types(ts);
+//         if m.len() == 1 && m[0].is_numeric() {
+//             m[0].clone()
+//         } else {
+//             Ttype::MaxNumeric(m.clone())
+//         }
+//     } else {
+//         ts
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn max_numeric() {
+    fn max_numeric_() {
         let l = tint();
         let r = tint8();
-        assert_eq!(max_numeric_type(l, r), tint());
+        assert_eq!(max_numeric_types(vec![l, r]), tint());
     }
 
     #[test]
@@ -249,8 +257,19 @@ mod tests {
         let l = tint();
         let r = tvar("v");
         assert_eq!(
-            max_numeric_type(l, r),
+            max_numeric_types(vec![l, r]),
             Ttype::MaxNumeric(vec![tint(), tvar("v")])
+        );
+    }
+
+    #[test]
+    fn max_numeric_vars() {
+        let l = tint();
+        let l2 = tnum();
+        let r = tvar("v");
+        assert_eq!(
+            max_numeric_types(vec![l, l2, r]),
+            Ttype::MaxNumeric(vec![tnum(), tvar("v")])
         );
     }
 
@@ -264,7 +283,7 @@ mod tests {
 
         assert_eq!(
             generic_fn_type.transform_generic(application_types),
-            Ttype::Fn(vec![tint(), Ttype::MaxNumeric(vec![tint(), tint()])])
+            Ttype::Fn(vec![tint(), tint()])
         );
     }
 

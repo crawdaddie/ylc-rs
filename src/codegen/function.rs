@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
 use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum, FunctionValue,
@@ -8,6 +10,7 @@ use super::{to_basic_value_enum, Compiler, GenericFns};
 
 use crate::parser::{Ast, Program};
 use crate::symbols::{Env, Environment, Numeric, Symbol, Ttype};
+use crate::typecheck::update_types;
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num
@@ -22,31 +25,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn get_generic(&mut self, name: &str) -> &mut GenericFns {
         self.generic_fns.get_mut(name).unwrap()
     }
-    pub fn generic_variant_name(&self, name: &str, t: Ttype) -> String {
-        // format!("{}_{}", name, t.mangle_name())
-        "".to_string()
-    }
 
-    pub fn get_generic_function(
-        &mut self,
-        id: &str,
-        fn_types: Ttype,
-    ) -> Option<FunctionValue<'ctx>> {
-        let gf_exists = self
-            .generic_fns
-            .get(id)
-            .map_or(false, |g| g.impls.contains(&fn_types));
-
-        if gf_exists {
-            self.get_function(self.generic_variant_name(id, fn_types).as_str())
-        } else {
-            None
-        }
-    }
-
-    pub fn add_generic_function(&mut self, id: &str, fn_types: Ttype) {
-        let mut gf = self.generic_fns.get_mut(id).unwrap();
-        gf.impls.insert(fn_types);
+    pub fn generic_variant_name(&self, name: &str, t: &Ttype) -> String {
+        format!(
+            "{}_{}",
+            name,
+            t.contained_types()
+                .iter()
+                .map(|t| { format!("{:?}", t).to_string() })
+                .collect::<Vec<String>>()
+                .join("_")
+        )
     }
 
     pub fn current_fn(&self) -> Option<&FunctionValue<'ctx>> {
@@ -164,6 +153,65 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.builder.position_at_end(previous_block);
         Some(function)
     }
+    pub fn compile_generic_fn_variant(
+        &mut self,
+        mangled_variant_name: String,
+        fn_expr: &mut Ast,
+        spec_types: &Ttype,
+    ) -> Option<FunctionValue<'ctx>> {
+        let mut subs = HashMap::<Ttype, Ttype>::new();
+
+        if let (Ast::Fn(params_vec, _, _), Ttype::Fn(ts)) = (&fn_expr, spec_types) {
+            for (p, t) in params_vec.iter().zip(ts) {
+                subs.insert(p.ttype(), t.clone());
+            }
+        } else {
+            panic!("Codegen error");
+        };
+
+        update_types(fn_expr, &subs, &mut self.env);
+
+        if let Ast::Fn(params, body, fn_type) = fn_expr {
+            self.codegen_fn(
+                mangled_variant_name.as_str(),
+                params,
+                body.clone(),
+                fn_type.clone(),
+            )
+        } else {
+            None
+        }
+    }
+
+    pub fn get_callable(
+        &mut self,
+        fn_name: String,
+        spec_type: &Ttype,
+    ) -> Option<FunctionValue<'ctx>> {
+        match self.env.lookup(fn_name.clone()) {
+            Some(Symbol::Function(fn_type)) if fn_type.is_generic() => {
+                let mangled_variant_name = self.generic_variant_name(fn_name.as_str(), spec_type);
+                match self.get_function(mangled_variant_name.as_str()) {
+                    Some(fn_value) => Some(fn_value),
+
+                    None => {
+                        if let Some(gen_fn) = self.generic_fns.get(&fn_name) {
+                            // compile new version of callable
+                            self.compile_generic_fn_variant(
+                                mangled_variant_name,
+                                &mut gen_fn.ast.clone(),
+                                spec_type,
+                            )
+                        } else {
+                            panic!();
+                        }
+                    }
+                }
+            }
+            Some(Symbol::Function(fn_type)) => self.get_function(&fn_name),
+            _ => panic!(),
+        }
+    }
 
     pub fn compile_call(
         &mut self,
@@ -188,3 +236,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {}

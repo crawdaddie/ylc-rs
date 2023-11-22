@@ -14,7 +14,7 @@ pub fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
     *t = lookup_contained_types(t.clone(), subs);
 }
 
-fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) {
+pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) {
     match ast {
         Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs, env),
         Ast::FnDeclaration(id, fn_expr) => {
@@ -139,7 +139,6 @@ mod tests {
 
     use super::*;
 
-    #[ignore]
     #[test]
     fn curried_function() {
         let input = r#"
@@ -152,6 +151,7 @@ mod tests {
         let mut parser = Parser::new(Lexer::new(input.into()));
         let mut program = parser.parse_program();
         infer_types(&mut program);
+        println!("curried call: {:?}", program[1]);
 
         if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
             let mut fn_types = vec![];

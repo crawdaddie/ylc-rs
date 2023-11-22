@@ -22,7 +22,7 @@ use inkwell::AddressSpace;
 #[derive(Debug)]
 pub struct GenericFns {
     ast: Ast,
-    impls: HashSet<Ttype>,
+    // _impls: HashSet<Ttype>,
 }
 
 pub struct Compiler<'a, 'ctx> {
@@ -223,11 +223,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
                 Ast::Fn(params, body, fn_type) if fn_type.is_generic() => {
                     self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
+
                     self.generic_fns.insert(
                         id.clone(),
                         GenericFns {
                             ast: (**fn_expr).clone(),
-                            impls: HashSet::new(),
                         },
                     );
                     None
@@ -333,14 +333,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             //         None
             //     }
             // }
-            Ast::Call(callable, args, _) => {
-                let fn_value = self.codegen(&callable).map(|v| v.into_function_value());
-
-                if let Some(callable_fn) = fn_value {
-                    return self.compile_call(callable_fn, args);
-                };
-                None
-            }
+            Ast::Call(callable, args, ttype) => match *callable.clone() {
+                Ast::Id(fn_name, specific_type) => {
+                    let callable = self.get_callable(fn_name, &specific_type);
+                    self.compile_call(callable.unwrap(), args)
+                }
+                _ => None,
+            },
             Ast::Body(_stmts, _ttype) => None,
             Ast::If(cond, then, elze, ttype) => {
                 let condition = self.codegen(cond)?.into_int_value();
