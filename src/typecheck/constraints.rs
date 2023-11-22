@@ -85,44 +85,24 @@ impl ConstraintGenerator {
         }
     }
 
-    fn callable_identifier(
-        &mut self,
-        callable_id: &Identifier,
-        callable_type: &Ttype,
-        call_args: &Vec<Ast>,
-    ) -> Ttype {
-        match self.get_function_type(callable_id.clone()) {
-            // Some(fn_type) if fn_type.is_generic() => {
-            //     let arg_types: Vec<Ttype> = call_args.iter().map(|a| a.ttype()).collect();
-            //     let fn_type_trans = fn_type.clone().transform_generic(arg_types);
-            //
-            //     self.push_constraint(callable_type.clone(), fn_type_trans.clone());
-            //     fn_type_trans
-            // }
-            //
-            Some(fn_type) => {
-                let f = fn_type.clone();
-                self.push_constraint(callable_type.clone(), f.clone());
-                f
-            }
-            _ => {
-                panic!()
-            }
+    fn callable_identifier(&mut self, callable_id: &Identifier, callable_type: &Ttype) -> Ttype {
+        if let Some(fn_type) = self.get_function_type(callable_id.clone()) {
+            let f = fn_type.clone();
+            self.push_constraint(callable_type.clone(), f.clone());
+            f
+        } else {
+            panic!("Constraint generator: no function {callable_id} found")
         }
     }
 
     fn call(&mut self, callable: &Ast, call_args: &Vec<Ast>, ttype: Ttype) {
-        // self.generate_constraints(callable);
-
         for p in call_args {
             self.generate_constraints(p);
         }
 
         match callable {
             Ast::Id(callable, callable_type) => {
-                if let Ttype::Fn(fn_types) =
-                    self.callable_identifier(callable, callable_type, call_args)
-                {
+                if let Ttype::Fn(fn_types) = self.callable_identifier(callable, callable_type) {
                     let l = ttype.clone();
                     let r = fn_types.last().unwrap();
                     self.push_constraint(l, r.clone());
@@ -130,9 +110,6 @@ impl ConstraintGenerator {
             }
             _ => panic!(),
         };
-
-        // if let Ttype::Fn(fn_types) = fn_type {
-        // }
     }
 
     pub fn generate_constraints(&mut self, ast: &Ast) {

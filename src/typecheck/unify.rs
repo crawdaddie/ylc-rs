@@ -1,5 +1,8 @@
 use super::constraints::Constraint;
-use crate::{symbols::Ttype, typecheck::apply_substitution};
+use crate::{
+    symbols::{max_numeric_type, max_numeric_types, Ttype},
+    typecheck::apply_substitution,
+};
 use std::{collections::HashMap, iter::zip};
 
 pub type Substitutions = HashMap<Ttype, Ttype>;
@@ -12,11 +15,18 @@ pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
                 t
             }
         }
-        Ttype::MaxNumeric(ts) => Ttype::MaxNumeric(
-            ts.iter()
+        Ttype::MaxNumeric(ts) => {
+            let ts = ts
+                .iter()
                 .map(|t| lookup_contained_types(t.clone(), subs))
-                .collect(),
-        ),
+                .collect::<Vec<Ttype>>();
+
+            if ts.iter().all(|x| x.is_numeric()) {
+                max_numeric_types(ts)
+            } else {
+                Ttype::MaxNumeric(ts)
+            }
+        }
 
         Ttype::Fn(fn_components) => Ttype::Fn(
             fn_components
@@ -86,10 +96,10 @@ impl Ttype {
     pub fn transform_generic(&mut self, application_types: Vec<Ttype>) -> Self {
         let mut t = self.clone();
         t.transform_generic_inplace(application_types.clone());
-        println!(
-            "transformed {:?} to {:?} with {:?}",
-            self, t, application_types
-        );
+        // println!(
+        //     "transformed {:?} to {:?} with {:?}",
+        //     self, t, application_types
+        // );
         t
     }
     pub fn transform_generic_inplace(&mut self, application_types: Vec<Ttype>) {

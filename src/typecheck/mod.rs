@@ -79,27 +79,31 @@ fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) {
                 }
             }
         }
-        Ast::Call(callee_box, ref mut params_vec, ttype) => {
+        Ast::Call(ref mut callee_box, ref mut params_vec, ttype) => {
             update_types(&mut *callee_box, subs, env);
 
             for a in &mut *params_vec {
                 update_types(a, subs, env);
             }
 
-            if let Ast::Id(fn_name, _) = *callee_box.clone() {
-                println!("lookup fn call {:?} in {:?}", fn_name, env);
+            if let Ast::Id(ref mut fn_name, ref mut fn_ref_type) = **callee_box {
+                let fn_type = match env.lookup(fn_name.clone()) {
+                    Some(Symbol::Function(fn_type)) if fn_type.is_generic() => {
+                        let arg_types = params_vec.iter().map(|x| x.ttype()).collect::<Vec<_>>();
+                        let spec_fn_type = fn_type.clone().transform_generic(arg_types);
 
-                if let Some(Symbol::Function(fn_type)) = env.lookup(fn_name) {
-                    println!(
-                        "update types {:?} ({:?}) {:?} {:?}",
-                        callee_box, fn_type, params_vec, ttype
-                    );
+                        *fn_ref_type = spec_fn_type;
+                        fn_ref_type
+                    }
+                    Some(Symbol::Function(fn_type)) => fn_type,
+                    _ => panic!("Typecheck: fn {fn_name} not found in scope"),
+                };
+                if let Ttype::Fn(ts) = fn_type {
+                    *ttype = ts.last().unwrap().clone();
                 }
-            }
-            apply_substitution(ttype, subs);
-            // update_callable(&mut *callee_box, params_vec);
-            // println!("update {:?} {:?}", callee_box, ttype);
-            // if let Ast::Id(callable, ttype) = *callee_box {}
+            } else {
+                apply_substitution(ttype, subs);
+            };
         }
         _ => (),
     }

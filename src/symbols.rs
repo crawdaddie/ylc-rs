@@ -222,11 +222,15 @@ pub fn max_numeric_types(ts: Vec<Ttype>) -> Ttype {
         .unwrap()
         .clone();
     let mut types = vec![Ttype::Numeric(max_numeric)];
+
     for g in generic {
         types.push(g)
     }
-
-    Ttype::MaxNumeric(types)
+    if types.len() == 1 && types[0].is_numeric() {
+        types[0].clone()
+    } else {
+        Ttype::MaxNumeric(types)
+    }
 }
 
 #[cfg(test)]

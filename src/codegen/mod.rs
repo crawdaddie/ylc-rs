@@ -53,7 +53,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         pass_manager: &'a PassManager<FunctionValue<'ctx>>,
         module: &'a Module<'ctx>,
         program: &Program,
-    ) -> Result<(FunctionValue<'ctx>, AnyTypeEnum<'ctx>), &'ctx str> {
+    ) -> Result<FunctionValue<'ctx>, &'ctx str> {
         let mut compiler = Self {
             context,
             builder,
@@ -95,47 +95,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             _ => self.context.void_type().fn_type(&[], false),
         }
     }
-    // fn get_main_fn_type(&self, program: &Program) -> FunctionType<'ctx> {
-    //     let last_stmt = program.last().unwrap();
-    //     println!("last: {:?}", last_stmt);
-    //     let t = last_stmt.ttype();
-    //
-    //     match (&t, last_stmt) {
-    //         (Ttype::Str, Ast::String(s)) => self
-    //             .context
-    //             .i8_type()
-    //             .array_type(s.len() as u32)
-    //             .fn_type(&[], false),
-    //         (_, Ast::Call(callable, args, app_type)) => {
-    //             // JANKY
-    //             if let (
-    //                 Ast::Id(callable_id, fn_type),
-    //                 Ttype::Application(_, application_types, _),
-    //             ) = ((**callable).clone(), app_type)
-    //             {
-    //                 if let Ttype::Fn(fn_types) =
-    //                     fn_type.transform_generic(application_types.to_vec())
-    //                 {
-    //                     self.type_to_llvm_fn(fn_types.last().unwrap().clone())
-    //                 } else {
-    //                     self.type_to_llvm_fn(t)
-    //                 }
-    //             } else {
-    //                 self.type_to_llvm_fn(t)
-    //             }
-    //         }
-    //         (_, _) => self.type_to_llvm_fn(t),
-    //     }
-    // }
 
-    fn compile_program(
-        &mut self,
-        program: &Program,
-    ) -> Result<(FunctionValue<'ctx>, AnyTypeEnum<'ctx>), &'ctx str> {
-        println!("last ttype: {:?}", program.last().unwrap().ttype());
-        let main_fn =
-            self.module
-                .add_function("main", self.context.void_type().fn_type(&[], false), None);
+    fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
+        let main_fn = self.module.add_function(
+            "main",
+            self.type_to_llvm_fn(program.last().unwrap().ttype()),
+            None,
+        );
 
         let basic_block = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(basic_block);
@@ -146,19 +112,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             v = self.codegen(&stmt);
         }
 
-        let ret_type = if let Some(v) = v {
+        if let Some(v) = v {
             self.add_return_value(v);
-            v.get_type()
         } else {
             self.builder.build_return(None);
-            AnyTypeEnum::VoidType(self.context.void_type())
         };
-
-        println!("top level env: {:?}", self.env);
 
         self.pop_fn_stack();
 
-        Ok((main_fn, ret_type))
+        Ok(main_fn)
     }
 
     fn cast_numeric(
