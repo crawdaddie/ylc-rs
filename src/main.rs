@@ -16,6 +16,9 @@ mod parser;
 mod symbols;
 mod typecheck;
 
+// mod repl;
+// use repl::repl;
+
 #[derive(Default, clap::Parser, Debug)]
 struct Arguments {
     #[clap(long, short, action)]
@@ -53,6 +56,7 @@ fn compile_program(program: &Program) {
     fpm.add_instruction_combining_pass();
     fpm.add_reassociate_pass();
     fpm.initialize();
+
     if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, program) {
         module.print_to_stderr();
         let ee = module
@@ -61,8 +65,13 @@ fn compile_program(program: &Program) {
 
         let name = main_fn.get_name().to_str().unwrap().to_string();
         let ret_type = main_fn.get_type().get_return_type();
+
         match ret_type {
-            Some(BasicTypeEnum::IntType(_i)) => unsafe {
+            Some(BasicTypeEnum::IntType(i)) if i.get_bit_width() == 1 => unsafe {
+                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
+                println!("=> {:?}", compiled_fn.unwrap().call());
+            },
+            Some(BasicTypeEnum::IntType(i)) => unsafe {
                 let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
                 println!("=> {:?}", compiled_fn.unwrap().call());
             },
@@ -73,7 +82,7 @@ fn compile_program(program: &Program) {
             },
             _ => {}
         }
-    }
+    };
 }
 
 fn main() -> Result<(), io::Error> {
@@ -94,6 +103,9 @@ fn main() -> Result<(), io::Error> {
     println!("\x1b[1;0m");
 
     compile_program(&program);
+    // let _ = repl(|line| {
+    //     println!("Line {}", line);
+    // });
 
     Ok(())
 }

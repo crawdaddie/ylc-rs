@@ -1,7 +1,7 @@
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Environment, Numeric, Symbol, Ttype};
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 mod conditional;
 mod function;
@@ -13,10 +13,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::types::{BasicType, FunctionType};
-use inkwell::values::{
-    AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue,
-};
-
+use inkwell::values::{AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue};
 
 #[derive(Debug)]
 pub struct GenericFns {
@@ -90,6 +87,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     fn type_to_llvm_fn(&self, ttype: Ttype) -> FunctionType<'ctx> {
         match ttype {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
+            Ttype::Bool => self.context.bool_type().fn_type(&[], false),
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
             _ => self.context.void_type().fn_type(&[], false),
         }
@@ -214,8 +212,23 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(value), // optional immediate assignment expression
             ) => {
                 let llvm_value = self.codegen(value);
+                // let alloc = self
+                //     .builder
+                //     .build_alloca(right.data.unwrap().get_type(), "");
+                //
+                // self.builder.build_store(alloc, right.data.unwrap());
+                // self.namespaces
+                //     .get_mut(&self.cur_fn.unwrap())
+                //     .unwrap()
+                //     .bindings
+                //     .insert(
+                //         name.clone(),
+                //         (Some(alloc), right.tp, BindingTags { is_mut: *is_mut }),
+                //     );
+
                 self.env
                     .bind_symbol(id.clone(), Symbol::Variable(value.ttype()));
+
                 llvm_value
             }
 
@@ -253,6 +266,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
                         Symbol::Function(_fn_type) => self.get_function(id).map(|f| f.into()),
                         Symbol::RecursiveRef => self.current_fn().map(|f| f.as_any_value_enum()),
+                        Symbol::Variable(var_type) => {
+                            println!("lookup symbol {:?} -- {:?}", id, sym);
+                            None
+                        }
                         _ => None,
                     }
                 } else {

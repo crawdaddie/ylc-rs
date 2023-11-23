@@ -1,0 +1,7 @@
+let f = fn (a, b) {
+  let c = a + b
+  c + 1
+}
+
+
+f(2, 1)
