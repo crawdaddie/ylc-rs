@@ -1,7 +1,10 @@
 use crate::lexer::Token;
 use crate::parser::{Ast, Program};
-use crate::symbols::{max_numeric_type, Env, Environment, Numeric, Symbol, Ttype};
+use crate::symbols::{max_numeric_type, Env, Environment, Numeric, StackFrame, Ttype};
 use std::collections::HashMap;
+
+use llvm_sys::core::LLVMTypeOf;
+use llvm_sys::prelude::LLVMTypeRef;
 
 mod conditional;
 mod function;
@@ -12,8 +15,57 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{BasicType, FunctionType};
-use inkwell::values::{AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue};
+use inkwell::types::{BasicTypeEnum, FunctionType};
+use inkwell::values::{
+    AnyValue, AnyValueEnum, AsValueRef, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
+};
+
+#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+pub enum Symbol<'ctx> {
+    TypeDecl,
+    Function(Ttype),
+    Variable(Ttype, Option<PointerValue<'ctx>>, Option<LLVMTypeRef>),
+    FnParam(u32, Ttype),
+    RecursiveRef,
+}
+
+impl<'ctx> Env<Symbol<'ctx>> {
+    pub fn new() -> Self {
+        let stack: Vec<StackFrame<Symbol<'ctx>>> = vec![];
+        Self { stack }
+    }
+}
+
+impl<'ctx> Environment<Symbol<'ctx>> for Env<Symbol<'ctx>> {
+    fn push(&mut self) -> Option<&mut StackFrame<Symbol<'ctx>>> {
+        let frame = HashMap::new();
+        self.stack.push(frame);
+        self.stack.last_mut()
+    }
+
+    fn pop(&mut self) -> Option<&mut StackFrame<Symbol<'ctx>>> {
+        self.stack.pop();
+        self.stack.last_mut()
+    }
+    fn current(&mut self) -> Option<&mut StackFrame<Symbol<'ctx>>> {
+        self.stack.last_mut()
+    }
+
+    fn bind_symbol(&mut self, name: String, value: Symbol<'ctx>) {
+        if let Some(frame) = self.current() {
+            frame.insert(name, value);
+        }
+    }
+    fn lookup(&self, name: String) -> Option<&Symbol<'ctx>> {
+        for frame in self.stack.iter().rev() {
+            let x = frame.get(&name);
+            if x.is_some() {
+                return x;
+            }
+        }
+        None
+    }
+}
 
 #[derive(Debug)]
 pub struct GenericFns {
@@ -26,7 +78,7 @@ pub struct Compiler<'a, 'ctx> {
     pub builder: &'a Builder<'ctx>,
     pub fpm: &'a PassManager<FunctionValue<'ctx>>,
     pub module: &'a Module<'ctx>,
-    env: Env<Symbol>,
+    env: Env<Symbol<'ctx>>,
     generic_fns: HashMap<String, GenericFns>,
     fn_stack: Vec<FunctionValue<'ctx>>,
 }
@@ -211,25 +263,27 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 _t,          // optional explicit type parameter
                 Some(value), // optional immediate assignment expression
             ) => {
-                let llvm_value = self.codegen(value);
-                // let alloc = self
-                //     .builder
-                //     .build_alloca(right.data.unwrap().get_type(), "");
-                //
-                // self.builder.build_store(alloc, right.data.unwrap());
-                // self.namespaces
-                //     .get_mut(&self.cur_fn.unwrap())
-                //     .unwrap()
-                //     .bindings
-                //     .insert(
-                //         name.clone(),
-                //         (Some(alloc), right.tp, BindingTags { is_mut: *is_mut }),
-                //     );
+                let llvm_value = self.codegen(value).unwrap();
+                unsafe {
+                    let type_ref = LLVMTypeOf(llvm_value.as_value_ref());
+                    let llvm_basic_type = BasicTypeEnum::new(type_ref);
+                    let alloc = self
+                        .builder
+                        .build_alloca(llvm_basic_type, format!("alloc_{id}").as_str());
+                    self.builder
+                        .build_store(alloc, to_basic_value_enum(llvm_value));
 
-                self.env
-                    .bind_symbol(id.clone(), Symbol::Variable(value.ttype()));
+                    self.env.bind_symbol(
+                        id.clone(),
+                        Symbol::Variable(
+                            value.ttype(),
+                            Some(alloc),
+                            Some(LLVMTypeOf(llvm_value.as_value_ref())),
+                        ),
+                    );
+                };
 
-                llvm_value
+                Some(llvm_value)
             }
 
             Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
@@ -266,9 +320,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
                         Symbol::Function(_fn_type) => self.get_function(id).map(|f| f.into()),
                         Symbol::RecursiveRef => self.current_fn().map(|f| f.as_any_value_enum()),
-                        Symbol::Variable(var_type) => {
-                            println!("lookup symbol {:?} -- {:?}", id, sym);
-                            None
+                        Symbol::Variable(_, llvm_val, llvm_type) => {
+                            let llvm_type = unsafe { BasicTypeEnum::new(llvm_type.unwrap()) };
+
+                            Some(
+                                self.builder
+                                    .build_load(
+                                        llvm_type,
+                                        llvm_val.unwrap(),
+                                        format!("load_{id}").as_str(),
+                                    )
+                                    .as_any_value_enum(),
+                            )
                         }
                         _ => None,
                     }

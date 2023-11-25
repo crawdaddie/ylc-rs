@@ -5,10 +5,10 @@ use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum, FunctionValue,
 };
 
-use super::{to_basic_value_enum, Compiler, GenericFns};
+use super::{to_basic_value_enum, Compiler, GenericFns, Symbol};
 
 use crate::parser::Ast;
-use crate::symbols::{Environment, Numeric, Symbol, Ttype};
+use crate::symbols::{Env, Environment, Numeric, StackFrame, Ttype};
 use crate::typecheck::update_types;
 
 fn is_num(n: Numeric) -> bool {
@@ -22,11 +22,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     pub fn generic_variant_name(&self, name: &str, t: &Ttype) -> String {
+        let ts = t.contained_types();
+        let (_, tss) = ts.split_last().unwrap();
         format!(
             "{}_{}",
             name,
-            t.contained_types()
-                .iter()
+            tss.iter()
                 .map(|t| { format!("{:?}", t).to_string() })
                 .collect::<Vec<String>>()
                 .join("_")
@@ -154,7 +155,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         spec_types: &Ttype,
     ) -> Option<FunctionValue<'ctx>> {
         let mut subs = HashMap::<Ttype, Ttype>::new();
-
         if let (Ast::Fn(params_vec, _, _), Ttype::Fn(ts)) = (&fn_expr, spec_types) {
             for (p, t) in params_vec.iter().zip(ts) {
                 subs.insert(p.ttype(), t.clone());
@@ -163,7 +163,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             panic!("Codegen error");
         };
 
-        update_types(fn_expr, &subs, &mut self.env);
+        update_types(fn_expr, &subs, &mut Env::<crate::symbols::Symbol>::new());
 
         if let Ast::Fn(params, body, fn_type) = fn_expr {
             self.codegen_fn(

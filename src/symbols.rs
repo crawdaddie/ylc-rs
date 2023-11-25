@@ -1,6 +1,11 @@
 use core::fmt;
 use std::collections::HashMap;
 
+use inkwell::{
+    types::AnyTypeEnum,
+    values::{AnyValueEnum, BasicValueEnum},
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Numeric {
@@ -128,11 +133,11 @@ pub fn tvar(s: &str) -> Ttype {
     Ttype::Var(s.into())
 }
 
-type StackFrame<T> = HashMap<String, T>;
+pub type StackFrame<T> = HashMap<String, T>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Env<T> {
-    stack: Vec<StackFrame<T>>,
+    pub stack: Vec<StackFrame<T>>,
 }
 pub trait Environment<T> {
     fn push(&mut self) -> Option<&mut StackFrame<T>>;
@@ -155,6 +160,10 @@ impl Env<Symbol> {
     pub fn new() -> Self {
         let stack: Vec<StackFrame<Symbol>> = vec![];
         Self { stack }
+    }
+
+    pub(crate) fn insert(&self, k: &str, vv: Symbol) {
+        todo!()
     }
 }
 
@@ -269,10 +278,8 @@ mod tests {
 
     #[test]
     fn generic_type_transformation() {
-        let mut generic_fn_type = Ttype::Fn(vec![
-            tvar("t0"),
-            Ttype::MaxNumeric(vec![tvar("t0"), tint()]),
-        ]);
+        let mut generic_fn_type =
+            Ttype::Fn(vec![tvar("t0"), Ttype::MaxNumeric(vec![tvar("t0"), tint()])]);
         let application_types = vec![tint()];
 
         assert_eq!(
@@ -286,11 +293,7 @@ mod tests {
         let mut generic_fn_type = Ttype::Fn(vec![
             tvar("a"),
             tvar("b"),
-            Ttype::Tuple(vec![
-                tvar("a"),
-                tint(),
-                Ttype::Tuple(vec![tint(), tvar("b")]),
-            ]),
+            Ttype::Tuple(vec![tvar("a"), tint(), Ttype::Tuple(vec![tint(), tvar("b")])]),
         ]);
         let application_types = vec![tint(), tnum()];
 

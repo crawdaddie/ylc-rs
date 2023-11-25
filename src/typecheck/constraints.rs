@@ -242,14 +242,10 @@ mod tests {
     fn constraints() {
         let program = vec![if_expr!(
             bool_expr!(true),
-            vec![tuple_expr!(
-                vec![int_expr!(1), int_expr!(2)],
-                tvar("tuple1")
-            )],
-            Some(vec![tuple_expr!(
-                vec![int_expr!(3), int_expr!(4)],
-                tvar("tuple2")
-            )]),
+            vec![tuple_expr!(vec![int_expr!(1), int_expr!(2)], tvar("tuple1"))],
+            Some(vec![
+                tuple_expr!(vec![int_expr!(3), int_expr!(4)], tvar("tuple2"))
+            ]),
             tvar("if_expr_type")
         )];
         let mut cg = ConstraintGenerator::new();
@@ -295,12 +291,7 @@ mod tests {
             ),
             // Binop
             (
-                vec![binop_expr!(
-                    Token::Plus,
-                    int_expr!(1),
-                    int_expr!(2),
-                    tvar("+")
-                )],
+                vec![binop_expr!(Token::Plus, int_expr!(1), int_expr!(2), tvar("+"))],
                 vec![(tvar("+"), tint())],
             ),
             // Binop generic
