@@ -26,13 +26,14 @@ pub enum Ttype {
 
     // compound types
     Tuple(Vec<Ttype>),
-    Array(Box<Ttype>),
+    List(Box<Ttype>),
 
     Fn(Vec<Ttype>),
 
     Var(String), // 'x
 
     Union(Vec<Ttype>),
+    Nth(Box<Ttype>, usize),
 }
 
 impl fmt::Debug for Ttype {
@@ -65,7 +66,7 @@ impl fmt::Debug for Ttype {
                 Ok(())
             }
             // Ttype::Ptr => write!(f, "Ttype::Ptr"),
-            Ttype::Array(inner_type) => write!(f, "Ttype::Array({:?})", inner_type),
+            Ttype::List(inner_type) => write!(f, "Ttype::List({:?})", inner_type),
             // Ttype::Uptr => write!(f, "Ttype::Uptr"),
             // Ttype::Nth(i, t) => write!(f, "{:?}[{}]", t, i),
             // Ttype::Application(n, args, _) => write!(f, "apply({:?} ({:?}))", n, args),
@@ -77,6 +78,10 @@ impl fmt::Debug for Ttype {
                     .collect::<Vec<String>>()
                     .join(" | ")
             ),
+            Ttype::Nth(t, i) => {
+                write!(f, "{:?}[{i}]", t);
+                Ok(())
+            }
         }
     }
 }
@@ -102,7 +107,7 @@ impl Ttype {
                 gen
             }
 
-            Ttype::Array(ts) => ts.is_generic(),
+            Ttype::List(ts) => ts.is_generic(),
             _ => self.is_var(),
         }
     }

@@ -56,7 +56,7 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             }
         }
 
-        Ast::Array(exprs_vec, ttype) => {
+        Ast::List(exprs_vec, ttype) => {
             apply_substitution(ttype, subs);
             for x in exprs_vec {
                 update_types(x, subs, env);

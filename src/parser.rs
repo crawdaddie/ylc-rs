@@ -64,11 +64,11 @@ macro_rules! tuple_expr {
 #[macro_export]
 macro_rules! array_expr {
     ($values:expr) => {
-        Ast::Array($values, tvar())
+        Ast::List($values, tvar())
     };
 
     ($values:expr, $var:expr) => {
-        Ast::Array($values, $var)
+        Ast::List($values, $var)
     };
 }
 #[macro_export]
@@ -158,7 +158,7 @@ pub enum Ast {
     Binop(Token, Box<Ast>, Box<Ast>, Ttype),
     Unop(Token, Box<Ast>, Ttype),
     Tuple(Vec<Ast>, Ttype),
-    Array(Vec<Ast>, Ttype),
+    List(Vec<Ast>, Ttype),
     Index(Box<Ast>, Box<Ast>, Ttype),
     Assignment(Box<Ast>, Box<Ast>, Ttype),
     Fn(Vec<Ast>, Vec<Ast>, Ttype),
@@ -196,7 +196,7 @@ impl Ast {
             | Ast::Binop(_, _, _, t)
             | Ast::Unop(_, _, t)
             | Ast::Tuple(_, t)
-            | Ast::Array(_, t)
+            | Ast::List(_, t)
             | Ast::Index(_, _, t)
             | Ast::Assignment(_, _, t)
             | Ast::Fn(_, _, t)
@@ -227,7 +227,7 @@ impl PartialEq for Ast {
             }
             (Ast::Unop(t1, e1, _), Ast::Unop(t2, e2, _)) => t1 == t2 && e1 == e2,
             (Ast::Tuple(v1, _), Ast::Tuple(v2, _)) => v1 == v2,
-            (Ast::Array(v1, _), Ast::Array(v2, _)) => v1 == v2,
+            (Ast::List(v1, _), Ast::List(v2, _)) => v1 == v2,
             (Ast::Index(e1, e2, _), Ast::Index(e3, e4, _)) => e1 == e3 && e2 == e4,
             (Ast::Assignment(e1, e2, _), Ast::Assignment(e3, e4, _)) => e1 == e3 && e2 == e4,
             (Ast::Fn(v1, v2, _), Ast::Fn(v3, v4, _)) => v1 == v3 && v2 == v4,
@@ -474,6 +474,7 @@ impl Parser {
                 array_elements.push(expr);
             }
         }
+
         Some(array_expr!(array_elements))
     }
 

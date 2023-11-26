@@ -193,20 +193,24 @@ impl ConstraintGenerator {
                 self.push_constraint(ttype.clone(), Ttype::Tuple(tuple_types))
             }
 
-            Ast::Array(exprs, ttype) => {
+            Ast::List(exprs, ttype) => {
                 for e in exprs {
                     self.generate_constraints(e);
                 }
                 let te = exprs.first().unwrap();
 
-                self.push_constraint(ttype.clone(), Ttype::Array(Box::new(te.ttype())))
+                self.push_constraint(ttype.clone(), Ttype::List(Box::new(te.ttype())))
             }
-            Ast::Index(obj, idx, _ttype) => {
+            Ast::Index(obj, idx, ttype) => {
                 self.generate_constraints(obj);
                 self.generate_constraints(idx);
                 self.push_constraint(idx.ttype(), tint());
-                // TODO:
-                // if obj has ttype Array<'t>, then ttype == 't
+                if let Ast::Integer(i) = **idx {
+                    self.push_constraint(
+                        ttype.clone(),
+                        Ttype::Nth(Box::new(obj.ttype()), i.try_into().unwrap()),
+                    )
+                }
             }
             Ast::Assignment(assignee, val, ttype) => {
                 self.generate_constraints(assignee);
@@ -267,11 +271,13 @@ mod tests {
         let mut cg = ConstraintGenerator::new();
         cg.generate_constraints(&program[0]);
         assert_eq_unordered::<Constraint>(
+            cg.constraints,
             vec![
                 (tvar("if_expr_type"), tvar("tuple2")),
                 (tvar("if_expr_type"), tvar("tuple1")),
+                (tvar("tuple1"), Ttype::Tuple(vec![tint(), tint()])),
+                (tvar("tuple2"), Ttype::Tuple(vec![tint(), tint()])),
             ],
-            cg.constraints,
         );
     }
 

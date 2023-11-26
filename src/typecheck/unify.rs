@@ -35,6 +35,14 @@ pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
                 .collect(),
         ),
 
+        Ttype::List(el_type) => {
+            Ttype::List(Box::new(lookup_contained_types((**el_type).clone(), subs)))
+        }
+
+        Ttype::Nth(el_type, i) => Ttype::Nth(
+            Box::new(lookup_contained_types((**el_type).clone(), subs)),
+            *i,
+        ),
         Ttype::Tuple(vals) => {
             let new_vals = vals
                 .iter()
@@ -66,7 +74,8 @@ impl Ttype {
                 l.iter().zip(r.iter()).all(|(l, r)| l.occurs_in(r, subs))
             }
 
-            (Ttype::Array(l), Ttype::Array(r)) => l.occurs_in(r, subs),
+            (Ttype::List(l), Ttype::List(r)) => l.occurs_in(r, subs),
+            (Ttype::Nth(l, i), Ttype::Nth(r, j)) if i == j => l.occurs_in(r, subs),
             _ => false,
         }
     }
@@ -86,7 +95,8 @@ impl Ttype {
             Ttype::MaxNumeric(ts) => {
                 Ttype::MaxNumeric(ts.iter().map(|t| t.substitute(mem, sub)).collect())
             }
-            Ttype::Array(t) => Ttype::Array(Box::new(t.substitute(mem, sub))),
+            Ttype::List(t) => Ttype::List(Box::new(t.substitute(mem, sub))),
+            Ttype::Nth(t, i) => Ttype::Nth(Box::new(t.substitute(mem, sub)), *i),
             Ttype::Var(_) if self == mem => sub.clone(),
             Ttype::Var(_) => sub.clone(),
             _ => self.clone(),
@@ -121,8 +131,26 @@ pub fn unify(l: &Ttype, r: &Ttype, subs: &mut Substitutions) {
                 unify(l, r, subs);
             }
         }
-        (Ttype::Array(l), Ttype::Array(r)) => {
+        (Ttype::List(l), Ttype::List(r)) => {
             unify(l, r, subs);
+        }
+
+        (Ttype::Var(_l), Ttype::Nth(r, i)) => {
+            if let Some(sub) = subs.clone().get(r) {
+                match sub {
+                    Ttype::List(t) => {
+                        unify(l, t, subs);
+                    }
+                    Ttype::Tuple(ts) => {
+                        let idx = *i;
+                        if ts.len() < idx + 1 {
+                            panic!("idx larger than tuple size")
+                        }
+                        unify(l, &ts[idx], subs);
+                    }
+                    _ => {}
+                }
+            }
         }
         (Ttype::Var(_v), _) => {
             if !l.occurs_in(r, subs) {
@@ -174,10 +202,10 @@ mod tests {
     #[test]
     fn unify_complex() {
         let cons = vec![
-            (tvar("t3"), Ttype::Array(Box::new(tvar("t5")))),
+            (tvar("t3"), Ttype::List(Box::new(tvar("t5")))),
             (tvar("t4"), tvar("t1")),
             (tvar("t4"), tint()),
-            (tvar("t3"), Ttype::Array(Box::new(tvar("t6")))),
+            (tvar("t3"), Ttype::List(Box::new(tvar("t6")))),
             (tvar("t6"), tvar("t4")),
             (tvar("t3"), tvar("t2")),
         ];
