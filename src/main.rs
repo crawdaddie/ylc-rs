@@ -5,16 +5,20 @@ use std::path::Path;
 
 use clap::Parser;
 use codegen::Compiler;
-use inkwell::context::Context;
+use dylib::DynamicLibrary;
+use inkwell::context::{AsContextRef, Context};
 use inkwell::passes::PassManager;
 use inkwell::types::BasicTypeEnum;
 use inkwell::OptimizationLevel;
+use llvm_sys::core::{LLVMContextDispose, LLVMDisposeModule};
+use llvm_sys::execution_engine::LLVMDisposeExecutionEngine;
 use parser::Program;
 mod codegen;
 mod lexer;
 mod parser;
 mod symbols;
 mod typecheck;
+use std::error::Error;
 
 // mod repl;
 // use repl::repl;
@@ -39,11 +43,10 @@ fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
     Ok(contents)
 }
 
-fn compile_program(program: &Program) {
+fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
     let context = Context::create();
     let module = context.create_module("ylc");
     let builder = context.create_builder();
-
     // Create FPM
     let fpm = PassManager::create(&module);
 
@@ -56,33 +59,40 @@ fn compile_program(program: &Program) {
     fpm.add_instruction_combining_pass();
     fpm.add_reassociate_pass();
     fpm.initialize();
+    let main_fn = Compiler::compile(&context, &builder, &fpm, &module, program)?;
+    module.print_to_stderr();
 
-    if let Ok(main_fn) = Compiler::compile(&context, &builder, &fpm, &module, program) {
-        module.print_to_stderr();
-        let ee = module
-            .create_jit_execution_engine(OptimizationLevel::None)
-            .unwrap();
+    let ee = module.create_jit_execution_engine(OptimizationLevel::None)?;
+    let name = main_fn.get_name().to_str().unwrap().to_string();
+    let ret_type = main_fn.get_type().get_return_type();
 
-        let name = main_fn.get_name().to_str().unwrap().to_string();
-        let ret_type = main_fn.get_type().get_return_type();
+    match ret_type {
+        Some(BasicTypeEnum::IntType(i)) if i.get_bit_width() == 1 => unsafe {
+            let compiled_fn = ee
+                .get_function::<unsafe extern "C" fn() -> bool>(name.as_str())
+                .unwrap();
+            println!("=> {:?}", compiled_fn.call());
+            // println!("{:?}", compiled_fn);
+        },
+        Some(BasicTypeEnum::IntType(i)) => unsafe {
+            let compiled_fn = ee
+                .get_function::<unsafe extern "C" fn() -> i64>(name.as_str())
+                .unwrap();
+            println!("=> {:?}", compiled_fn.call());
 
-        match ret_type {
-            Some(BasicTypeEnum::IntType(i)) if i.get_bit_width() == 1 => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> bool>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
-            Some(BasicTypeEnum::IntType(i)) => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> i64>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
+            // println!("{:?}", compiled_fn);
+        },
 
-            Some(BasicTypeEnum::FloatType(_f)) => unsafe {
-                let compiled_fn = ee.get_function::<unsafe extern "C" fn() -> f64>(name.as_str());
-                println!("=> {:?}", compiled_fn.unwrap().call());
-            },
-            _ => {}
-        }
-    };
+        Some(BasicTypeEnum::FloatType(_f)) => unsafe {
+            let compiled_fn = ee
+                .get_function::<unsafe extern "C" fn() -> f64>(name.as_str())
+                .unwrap();
+            println!("=> {:?}", compiled_fn.call());
+        },
+        _ => {}
+    }
+
+    Ok(())
 }
 
 fn main() -> Result<(), io::Error> {
@@ -102,7 +112,11 @@ fn main() -> Result<(), io::Error> {
     }
     println!("\x1b[1;0m");
 
-    compile_program(&program);
+    let lib_path = Path::new("/Users/adam/projects/langs/ylc/libs/libyalce_synth.so");
+    println!("lib path: {:?}", lib_path);
+    let x = DynamicLibrary::open(Some(lib_path)).unwrap();
+
+    let _ = compile_program(&program);
     // let _ = repl(|line| {
     //     println!("Line {}", line);
     // });

@@ -56,6 +56,13 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             }
         }
 
+        Ast::Array(exprs_vec, ttype) => {
+            apply_substitution(ttype, subs);
+            for x in exprs_vec {
+                update_types(x, subs, env);
+            }
+        }
+
         Ast::Index(object_box, index_box, ttype) => {
             apply_substitution(ttype, subs);
             update_types(&mut *object_box, subs, env);
@@ -98,8 +105,19 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
                     Some(Symbol::Function(fn_type)) => fn_type,
                     _ => panic!("Typecheck: fn {fn_name} not found in scope"),
                 };
-                if let Ttype::Fn(ts) = fn_type {
-                    *ttype = ts.last().unwrap().clone();
+                println!(
+                    "handle curried func??? {:?} {:?} {:?}",
+                    params_vec, ttype, fn_type
+                );
+                match fn_type {
+                    Ttype::Fn(ts) if ts.len() == params_vec.len() + 1 => {
+                        *ttype = ts.last().unwrap().clone();
+                    }
+
+                    Ttype::Fn(ts) => {
+                        *ttype = Ttype::Fn(ts[2..].into());
+                    }
+                    _ => {}
                 }
             } else {
                 apply_substitution(ttype, subs);
@@ -151,7 +169,10 @@ mod tests {
         let mut parser = Parser::new(Lexer::new(input.into()));
         let mut program = parser.parse_program();
         infer_types(&mut program);
-        println!("curried call: {:?}", program[1]);
+        for p in program.clone() {
+            println!("stmt: {:?}", p);
+        }
+        // println!("curried call: {:?}", program);
 
         if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
             let mut fn_types = vec![];

@@ -322,16 +322,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         Symbol::RecursiveRef => self.current_fn().map(|f| f.as_any_value_enum()),
                         Symbol::Variable(_, llvm_val, llvm_type) => {
                             let llvm_type = unsafe { BasicTypeEnum::new(llvm_type.unwrap()) };
+                            let load = self.builder.build_load(
+                                llvm_type,
+                                llvm_val.unwrap(),
+                                format!("load_{id}").as_str(),
+                            );
+                            println!("LOADED {:?}", load);
 
-                            Some(
-                                self.builder
-                                    .build_load(
-                                        llvm_type,
-                                        llvm_val.unwrap(),
-                                        format!("load_{id}").as_str(),
-                                    )
-                                    .as_any_value_enum(),
-                            )
+                            Some(load.as_any_value_enum())
                         }
                         _ => None,
                     }
@@ -367,13 +365,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     let one = self.context.bool_type().const_int(1, false);
                     Some(
                         self.builder
-                            .build_xor(op.into_int_value(), one, "negated_value")
+                            .build_xor(op.into_int_value(), one, "xor")
                             .as_any_value_enum(),
                     )
                 }
                 _ => None,
             },
-            Ast::Tuple(_exprs, _ttype) => None,
+            Ast::Tuple(exprs, ttype) => {
+                println!("TUPLE EXPRS {:?}", exprs);
+                None
+            }
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _body, _ttype) => None,
@@ -419,7 +420,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
                 _ => None,
             },
-            Ast::Body(_stmts, _ttype) => None,
+            // Ast::Body(_stmts, _ttype) => None,
             Ast::If(cond, then, elze, ttype) => {
                 let condition = self.codegen(cond)?.into_int_value();
                 self.codegen_conditional_expr(condition, then, elze, ttype.clone())
@@ -458,3 +459,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 }
+// impl<'a, 'ctx> Drop for Compiler<'a, 'ctx> {
+//     fn drop(&mut self) {
+//         println!("Dropping compiler!!");
+//     }
+// }

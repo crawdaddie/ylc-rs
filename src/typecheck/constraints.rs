@@ -184,7 +184,23 @@ impl ConstraintGenerator {
                     _ => {}
                 }
             }
-            Ast::Tuple(_exprs, _ttype) => {}
+            Ast::Tuple(exprs, ttype) => {
+                let mut tuple_types = vec![];
+                for e in exprs {
+                    self.generate_constraints(e);
+                    tuple_types.push(e.ttype());
+                }
+                self.push_constraint(ttype.clone(), Ttype::Tuple(tuple_types))
+            }
+
+            Ast::Array(exprs, ttype) => {
+                for e in exprs {
+                    self.generate_constraints(e);
+                }
+                let te = exprs.first().unwrap();
+
+                self.push_constraint(ttype.clone(), Ttype::Array(Box::new(te.ttype())))
+            }
             Ast::Index(obj, idx, _ttype) => {
                 self.generate_constraints(obj);
                 self.generate_constraints(idx);

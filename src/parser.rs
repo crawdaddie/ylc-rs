@@ -60,6 +60,17 @@ macro_rules! tuple_expr {
         Ast::Tuple($values, $var)
     };
 }
+
+#[macro_export]
+macro_rules! array_expr {
+    ($values:expr) => {
+        Ast::Array($values, tvar())
+    };
+
+    ($values:expr, $var:expr) => {
+        Ast::Array($values, $var)
+    };
+}
 #[macro_export]
 macro_rules! binop_expr {
     ($op:expr,$l:expr,$r:expr) => {
@@ -147,11 +158,11 @@ pub enum Ast {
     Binop(Token, Box<Ast>, Box<Ast>, Ttype),
     Unop(Token, Box<Ast>, Ttype),
     Tuple(Vec<Ast>, Ttype),
+    Array(Vec<Ast>, Ttype),
     Index(Box<Ast>, Box<Ast>, Ttype),
     Assignment(Box<Ast>, Box<Ast>, Ttype),
     Fn(Vec<Ast>, Vec<Ast>, Ttype),
     Call(Box<Ast>, Vec<Ast>, Ttype),
-    Body(Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
     VarArg,
 
@@ -185,11 +196,11 @@ impl Ast {
             | Ast::Binop(_, _, _, t)
             | Ast::Unop(_, _, t)
             | Ast::Tuple(_, t)
+            | Ast::Array(_, t)
             | Ast::Index(_, _, t)
             | Ast::Assignment(_, _, t)
             | Ast::Fn(_, _, t)
             | Ast::Call(_, _, t)
-            | Ast::Body(_, t)
             | Ast::If(_, _, _, t) => t.clone(),
 
             Ast::Int8(_i) => Ttype::Numeric(Numeric::Int8),
@@ -216,11 +227,12 @@ impl PartialEq for Ast {
             }
             (Ast::Unop(t1, e1, _), Ast::Unop(t2, e2, _)) => t1 == t2 && e1 == e2,
             (Ast::Tuple(v1, _), Ast::Tuple(v2, _)) => v1 == v2,
+            (Ast::Array(v1, _), Ast::Array(v2, _)) => v1 == v2,
             (Ast::Index(e1, e2, _), Ast::Index(e3, e4, _)) => e1 == e3 && e2 == e4,
             (Ast::Assignment(e1, e2, _), Ast::Assignment(e3, e4, _)) => e1 == e3 && e2 == e4,
             (Ast::Fn(v1, v2, _), Ast::Fn(v3, v4, _)) => v1 == v3 && v2 == v4,
             (Ast::Call(e1, v1, _), Ast::Call(e2, v2, _)) => e1 == e2 && v1 == v2,
-            (Ast::Body(v1, _), Ast::Body(v2, _)) => v1 == v2,
+            // (Ast::Body(v1, _), Ast::Body(v2, _)) => v1 == v2,
             (Ast::If(e1, v1, t1, _), Ast::If(e2, v2, t2, _)) => e1 == e2 && v1 == v2 && t1 == t2,
             (Ast::Int8(i1), Ast::Int8(i2)) => i1 == i2,
             (Ast::Integer(i1), Ast::Integer(i2)) => i1 == i2,
@@ -331,17 +343,15 @@ impl Parser {
     fn parse_let(&mut self) -> Option<Ast> {
         self.advance();
         let id = self.parse_identifier();
-        let type_param = if self.expect_token(Token::Colon) {
-            self.parse_type_expression()
-        } else {
-            None
-        };
+        let type_param =
+            if self.expect_token(Token::Colon) {
+                self.parse_type_expression()
+            } else {
+                None
+            };
         if self.expect_token(Token::Assignment) {
             match self.current {
-                Token::Fn => Some(Ast::FnDeclaration(
-                    id,
-                    Box::new(self.parse_fn_expression()?),
-                )),
+                Token::Fn => Some(Ast::FnDeclaration(id, Box::new(self.parse_fn_expression()?))),
                 _ => Some(Ast::Let(
                     id,
                     type_param,
@@ -408,11 +418,12 @@ impl Parser {
         } else {
             tvar()
         };
-        let body = if self.current == Token::LeftBrace {
-            self.parse_body()
-        } else {
-            vec![]
-        };
+        let body =
+            if self.current == Token::LeftBrace {
+                self.parse_body()
+            } else {
+                vec![]
+            };
 
         let mut fn_type: Vec<Ttype> = params.iter().map(|x| x.ttype()).collect();
         fn_type.push(return_type);
@@ -451,6 +462,19 @@ impl Parser {
             Token::Comma => self.parse_tuple(expr.unwrap()),
             _ => None,
         }
+    }
+
+    fn parse_array(&mut self) -> Option<Ast> {
+        self.advance();
+        let mut array_elements: Vec<Ast> = vec![];
+
+        while self.current != Token::RightSq {
+            self.skip_token(Token::Comma);
+            if let Some(expr) = self.parse_expression(Precedence::None) {
+                array_elements.push(expr);
+            }
+        }
+        Some(array_expr!(array_elements))
     }
 
     fn parse_tuple(&mut self, first: Ast) -> Option<Ast> {
@@ -549,6 +573,7 @@ impl Parser {
             Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expression(),
             Token::Lp => self.parse_grouping(),
             Token::If => self.parse_conditional_expression(),
+            Token::LeftSq => self.parse_array(),
 
             _ => {
                 // self.error_no_prefix_parser();
@@ -691,32 +716,33 @@ mod tests {
 
     #[test]
     fn math_exprs() {
-        let tests = vec![
-            (
-                r#"1 + 7.0"#,
-                binop_expr!(Token::Plus, int_expr!(1), num_expr!(7.0)),
-            ),
-            (
-                r#"1 * (7.0 + 200)"#,
-                binop_expr!(
-                    Token::Star,
-                    int_expr!(1),
-                    binop_expr!(Token::Plus, num_expr!(7.0), int_expr!(200))
+        let tests =
+            vec![
+                (
+                    r#"1 + 7.0"#,
+                    binop_expr!(Token::Plus, int_expr!(1), num_expr!(7.0)),
                 ),
-            ),
-            (
-                r#"13 * (2 + 2) + 100.0"#,
-                binop_expr!(
-                    Token::Plus,
+                (
+                    r#"1 * (7.0 + 200)"#,
                     binop_expr!(
                         Token::Star,
-                        int_expr!(13),
-                        binop_expr!(Token::Plus, int_expr!(2), int_expr!(2))
+                        int_expr!(1),
+                        binop_expr!(Token::Plus, num_expr!(7.0), int_expr!(200))
                     ),
-                    num_expr!(100.0)
                 ),
-            ),
-        ];
+                (
+                    r#"13 * (2 + 2) + 100.0"#,
+                    binop_expr!(
+                        Token::Plus,
+                        binop_expr!(
+                            Token::Star,
+                            int_expr!(13),
+                            binop_expr!(Token::Plus, int_expr!(2), int_expr!(2))
+                        ),
+                        num_expr!(100.0)
+                    ),
+                ),
+            ];
 
         for (input, expect) in tests {
             let mut parser = Parser::new(Lexer::new(input.into()));
@@ -899,10 +925,7 @@ mod tests {
         let program = parser.parse_program();
 
         assert_eq!(
-            vec![Ast::FnDeclaration(
-                "printf".into(),
-                Box::new(Ast::Fn(vec![], vec![], tvar(),))
-            )],
+            vec![Ast::FnDeclaration("printf".into(), Box::new(Ast::Fn(vec![], vec![], tvar(),)))],
             program
         );
         assert_eq!(program[0].ttype(), Ttype::Fn(vec![tint()]));

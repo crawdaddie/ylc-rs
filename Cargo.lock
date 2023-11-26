@@ -156,6 +156,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
+name = "dylib"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f06c13073013a912b363eee1433572499a2028a6b05432dad09383124d64731e"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -437,6 +446,7 @@ name = "rst"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "dylib",
  "inkwell",
  "llvm-sys",
  "nom",

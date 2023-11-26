@@ -1,8 +1,7 @@
-let g = 3
 let f = fn (a, b) {
-  let c = a + b + g
-  c + 1.0
+  let c = a + b
+  c + 2.0
 }
 
 
-f(2, 0)
+f(2, 1)
