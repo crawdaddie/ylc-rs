@@ -89,6 +89,12 @@ fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
                 .unwrap();
             println!("=> {:?}", compiled_fn.call());
         },
+        Some(BasicTypeEnum::StructType(_)) => unsafe {
+            let compiled_fn = ee
+                .get_function::<unsafe extern "C" fn() -> (i64, i64, i64)>(name.as_str())
+                .unwrap();
+            println!("=> {:?}", compiled_fn.call());
+        },
         _ => {}
     }
 

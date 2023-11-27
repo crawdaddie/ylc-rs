@@ -15,7 +15,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{BasicTypeEnum, FunctionType};
+use inkwell::types::{AsTypeRef, BasicTypeEnum, FunctionType};
 use inkwell::values::{
     AnyValue, AnyValueEnum, AsValueRef, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
 };
@@ -135,12 +135,40 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
         }
     }
+    fn type_to_llvm_type(&self, ttype: Ttype) -> BasicTypeEnum {
+        match ttype {
+            Ttype::Numeric(Numeric::Int) => self.context.i64_type().into(),
+            Ttype::Bool => self.context.bool_type().into(),
+            Ttype::Numeric(Numeric::Num) => self.context.f64_type().into(),
+            Ttype::Tuple(ts) => {
+                let llvm_types = ts
+                    .iter()
+                    .map(|x| self.type_to_llvm_type(x.clone()))
+                    .collect::<Vec<_>>();
+
+                self.context
+                    .struct_type(llvm_types.as_slice(), false)
+                    .into()
+            }
+            _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
+        }
+    }
 
     fn type_to_llvm_fn(&self, ttype: Ttype) -> FunctionType<'ctx> {
         match ttype {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
             Ttype::Bool => self.context.bool_type().fn_type(&[], false),
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
+            Ttype::Tuple(ts) => {
+                let llvm_types = ts
+                    .iter()
+                    .map(|x| self.type_to_llvm_type(x.clone()))
+                    .collect::<Vec<_>>();
+
+                self.context
+                    .struct_type(llvm_types.as_slice(), false)
+                    .fn_type(&[], false)
+            }
             _ => self.context.void_type().fn_type(&[], false),
         }
     }
@@ -372,47 +400,29 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 _ => None,
             },
             Ast::Tuple(exprs, ttype) => {
-                println!("TUPLE EXPRS {:?}", exprs);
-                None
+                let mut es = vec![];
+                for e in exprs {
+                    es.push(self.codegen(e).unwrap());
+                }
+                let struct_types: Vec<BasicTypeEnum> = unsafe {
+                    es.iter()
+                        .map(|v| BasicTypeEnum::new(v.get_type().as_type_ref()))
+                        .collect()
+                };
+                let struct_type = self.context.struct_type(struct_types.as_slice(), false);
+                let struct_val =
+                    self.context.const_struct(
+                        es.iter()
+                            .map(|v| to_basic_value_enum(*v))
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                        false,
+                    );
+                Some(struct_val.into())
             }
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _body, _ttype) => None,
-            // Ast::Call(callable, args, application_types) if callable.ttype().is_generic() => {
-            //     if let (
-            //         Ast::Id(callable_id, fn_type),
-            //         Ttype::Application(_, application_types, _),
-            //     ) = ((**callable).clone(), application_types)
-            //     {
-            //         let fn_type = fn_type.transform_generic(application_types.to_vec());
-            //
-            //         match self.get_generic_function(callable_id.as_str(), fn_type.clone()) {
-            //             Some(fn_value) => self.compile_call(fn_value, args),
-            //             None => {
-            //                 let g = self.get_generic(callable_id.as_str());
-            //                 if let Ast::Fn(params, body, _) = g.ast.clone() {
-            //                     let fn_value = self.codegen_fn(
-            //                         self.generic_variant_name(
-            //                             callable_id.as_str(),
-            //                             fn_type.clone(),
-            //                         )
-            //                         .as_str(),
-            //                         &params,
-            //                         return_type,
-            //                         body,
-            //                         fn_type.clone(),
-            //                     );
-            //                     self.add_generic_function(callable_id.as_str(), fn_type);
-            //                     self.compile_call(fn_value.unwrap(), args)
-            //                 } else {
-            //                     None
-            //                 }
-            //             }
-            //         }
-            //     } else {
-            //         None
-            //     }
-            // }
             Ast::Call(callable, args, _ttype) => match *callable.clone() {
                 Ast::Id(fn_name, specific_type) => {
                     let callable = self.get_callable(fn_name, &specific_type);

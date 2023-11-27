@@ -135,12 +135,13 @@ pub fn unify(l: &Ttype, r: &Ttype, subs: &mut Substitutions) {
             unify(l, r, subs);
         }
 
-        (Ttype::Var(_l), Ttype::Nth(r, i)) => {
-            if let Some(sub) = subs.clone().get(r) {
+        (Ttype::Var(_l), Ttype::Nth(inner_r, i)) => {
+            if let Some(sub) = subs.clone().get(inner_r) {
                 match sub {
                     Ttype::List(t) => {
                         unify(l, t, subs);
                     }
+
                     Ttype::Tuple(ts) => {
                         let idx = *i;
                         if ts.len() < idx + 1 {
@@ -150,6 +151,8 @@ pub fn unify(l: &Ttype, r: &Ttype, subs: &mut Substitutions) {
                     }
                     _ => {}
                 }
+            } else {
+                subs.insert(l.clone(), r.clone());
             }
         }
         (Ttype::Var(_v), _) => {

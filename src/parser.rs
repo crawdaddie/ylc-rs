@@ -343,6 +343,17 @@ impl Parser {
     fn parse_let(&mut self) -> Option<Ast> {
         self.advance();
         let id = self.parse_identifier();
+        // TODO: allow syntax like
+        // let a0, a1, a2 = (1, 2, 3)
+        // ie instead of Identifier, allow for Ast::Let(Vec<Ast::Id>, None, TupleExpr)
+        // could work to implement let as always
+        // Ast::Let(
+        //   Vec<Ast>, (- Ast here must be Ast::Id)
+        //   None, (- no type necessary, each Ast::Id will have its own type corresponding to Nth of
+        //          the TupleExpr)
+        //   Box<Ast>
+        // )
+        //
         let type_param =
             if self.expect_token(Token::Colon) {
                 self.parse_type_expression()
