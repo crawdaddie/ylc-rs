@@ -5,13 +5,11 @@ use std::path::Path;
 
 use clap::Parser;
 use codegen::Compiler;
-use dylib::DynamicLibrary;
-use inkwell::context::{AsContextRef, Context};
+// use dylib::DynamicLibrary;
+use inkwell::context::Context;
 use inkwell::passes::PassManager;
 use inkwell::types::BasicTypeEnum;
 use inkwell::OptimizationLevel;
-use llvm_sys::core::{LLVMContextDispose, LLVMDisposeModule};
-use llvm_sys::execution_engine::LLVMDisposeExecutionEngine;
 use parser::Program;
 mod codegen;
 mod lexer;
@@ -89,7 +87,7 @@ fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
                 .unwrap();
             println!("=> {:?}", compiled_fn.call());
         },
-        Some(BasicTypeEnum::StructType(_)) => unsafe {
+        Some(BasicTypeEnum::StructType(s)) => unsafe {
             let compiled_fn = ee
                 .get_function::<unsafe extern "C" fn() -> (i64, i64, i64)>(name.as_str())
                 .unwrap();
@@ -118,9 +116,8 @@ fn main() -> Result<(), io::Error> {
     }
     println!("\x1b[1;0m");
 
-    let lib_path = Path::new("/Users/adam/projects/langs/ylc/libs/libyalce_synth.so");
-    println!("lib path: {:?}", lib_path);
-    let x = DynamicLibrary::open(Some(lib_path)).unwrap();
+    // let lib_path = Path::new("/Users/adam/projects/langs/ylc/libs/libyalce_synth.so");
+    // let x = DynamicLibrary::open(Some(lib_path)).unwrap();
 
     let _ = compile_program(&program);
     // let _ = repl(|line| {

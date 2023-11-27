@@ -113,9 +113,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         };
         compiler.compile_program(program)
     }
-    // fn into_value(&mut self, v: AnyValueEnum) {
-    //     TryFrom::<dyn BasicValue>::try_from(v);
-    // }
+
     fn add_return_value(&mut self, v: AnyValueEnum) {
         match v {
             AnyValueEnum::IntValue(_) => {
@@ -128,6 +126,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             AnyValueEnum::ArrayValue(_) => {
                 self.builder.build_return(Some(&v.into_array_value()));
+            }
+
+            AnyValueEnum::StructValue(_) => {
+                self.builder.build_return(Some(&v.into_struct_value()));
             }
 
             _ => {
@@ -148,6 +150,26 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
                 self.context
                     .struct_type(llvm_types.as_slice(), false)
+                    .into()
+            }
+            _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
+        }
+    }
+
+    fn type_to_llvm_array_type(&self, ttype: Ttype, size: u32) -> BasicTypeEnum {
+        match ttype {
+            Ttype::Numeric(Numeric::Int) => self.context.i64_type().array_type(size).into(),
+            Ttype::Bool => self.context.bool_type().array_type(size).into(),
+            Ttype::Numeric(Numeric::Num) => self.context.f64_type().array_type(size).into(),
+            Ttype::Tuple(ts) => {
+                let llvm_types = ts
+                    .iter()
+                    .map(|x| self.type_to_llvm_type(x.clone()))
+                    .collect::<Vec<_>>();
+
+                self.context
+                    .struct_type(llvm_types.as_slice(), false)
+                    .array_type(size)
                     .into()
             }
             _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
@@ -400,16 +422,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 _ => None,
             },
             Ast::Tuple(exprs, ttype) => {
-                let mut es = vec![];
-                for e in exprs {
-                    es.push(self.codegen(e).unwrap());
-                }
-                let struct_types: Vec<BasicTypeEnum> = unsafe {
-                    es.iter()
-                        .map(|v| BasicTypeEnum::new(v.get_type().as_type_ref()))
-                        .collect()
-                };
-                let struct_type = self.context.struct_type(struct_types.as_slice(), false);
+                let es: Vec<AnyValueEnum> =
+                    exprs.iter().map(|e| self.codegen(e).unwrap()).collect();
                 let struct_val =
                     self.context.const_struct(
                         es.iter()
@@ -419,6 +433,25 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         false,
                     );
                 Some(struct_val.into())
+            }
+
+            Ast::List(exprs, ttype) => {
+                let es: Vec<AnyValueEnum> =
+                    exprs.iter().map(|e| self.codegen(e).unwrap()).collect();
+                if let Ttype::List(list_type) = ttype {
+                    let llvm_list_type = self
+                        .type_to_llvm_array_type(*list_type.clone(), es.len().try_into().unwrap());
+
+                    // self.context.const_array()
+
+                    // let array_alloca =
+                    //     self.builder
+                    //         .build_array_alloca(llvm_list_type, es.len(), "array_alloca");
+                    None
+                    // Some(array_alloca.into())
+                } else {
+                    None
+                }
             }
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
