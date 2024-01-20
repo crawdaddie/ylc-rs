@@ -5,7 +5,7 @@ use super::Compiler;
 
 use crate::lexer::Token;
 
-use crate::symbols::{Numeric};
+use crate::symbols::Numeric;
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num
@@ -68,17 +68,21 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .as_any_value_enum(),
             ),
 
-            Token::Modulo if is_num(desired_cast) => Some(
-                self.builder
-                    .build_float_rem(l.into_float_value(), r.into_float_value(), "tmp_modulo")
-                    .as_any_value_enum(),
-            ),
+            Token::Modulo if is_num(desired_cast) => {
+                Some(
+                    self.builder
+                        .build_float_rem(l.into_float_value(), r.into_float_value(), "tmp_modulo")
+                        .as_any_value_enum(),
+                )
+            }
 
-            Token::Modulo => Some(
-                self.builder
-                    .build_int_signed_rem(l.into_int_value(), r.into_int_value(), "tmp_modulo")
-                    .as_any_value_enum(),
-            ),
+            Token::Modulo => {
+                Some(
+                    self.builder
+                        .build_int_signed_rem(l.into_int_value(), r.into_int_value(), "tmp_modulo")
+                        .as_any_value_enum(),
+                )
+            }
 
             Token::Lt => Some(
                 self.builder

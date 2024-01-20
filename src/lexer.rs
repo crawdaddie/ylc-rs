@@ -38,6 +38,8 @@ pub enum Token {
     Number(f64),
     Integer(i64),
 
+    Char(char), // literal
+
     // keywords
     Fn,
     Return,
@@ -140,25 +142,29 @@ impl Lexer {
             '[' => Token::LeftSq,
             ']' => Token::RightSq,
             '%' => Token::Modulo,
-            '|' => match self.peek() {
-                '|' => {
-                    self.advance(1);
-                    Token::LogicalOr
+            '|' => {
+                match self.peek() {
+                    '|' => {
+                        self.advance(1);
+                        Token::LogicalOr
+                    }
+                    _ => Token::Bar,
                 }
-                _ => Token::Bar,
-            },
+            }
             '\n' => {
                 self.col = 0;
                 self.line += 1;
                 Token::Nl
             }
-            '!' => match self.peek() {
-                '=' => {
-                    self.advance(1);
-                    Token::NotEqual
+            '!' => {
+                match self.peek() {
+                    '=' => {
+                        self.advance(1);
+                        Token::NotEqual
+                    }
+                    _ => Token::Bang,
                 }
-                _ => Token::Bang,
-            },
+            }
             '?' => Token::Question,
             '.' => match (self.peek(), self.peek()) {
                 ('.', '.') => {
@@ -180,23 +186,28 @@ impl Lexer {
                 _ => Token::Ampersand,
             },
 
-            '<' => match self.peek() {
-                '=' => {
-                    self.advance(1);
-                    Token::Lte
+            '<' => {
+                match self.peek() {
+                    '=' => {
+                        self.advance(1);
+                        Token::Lte
+                    }
+                    _ => Token::Lt,
                 }
-                _ => Token::Lt,
-            },
+            }
 
-            '>' => match self.peek() {
-                '=' => {
-                    self.advance(1);
-                    Token::Gte
+            '>' => {
+                match self.peek() {
+                    '=' => {
+                        self.advance(1);
+                        Token::Gte
+                    }
+                    _ => Token::Gt,
                 }
-                _ => Token::Gt,
-            },
+            }
 
             '"' => self.scan_string(),
+            '\'' => self.scan_char(),
             _ => {
                 if is_digit(self.ch) {
                     self.scan_number()
@@ -248,6 +259,22 @@ impl Lexer {
 
         self.advance(s.len());
         Token::String(s)
+    }
+
+    fn scan_char(&mut self) -> Token {
+        // let mut s = Char::new();
+        self.advance(1);
+        let char_index = self.read_position;
+        let c = self.input[char_index];
+        //     if c == '"' && self.input[char_index - 1] != '\\' {
+        //         break;
+        //     }
+        //     s.push(c);
+        // }
+        //
+        // self.advance(s.len());
+        // Token::String(s)
+        Token::Char(c)
     }
     fn scan_keyword(&mut self) -> Token {
         let kw = self.read_identifier();

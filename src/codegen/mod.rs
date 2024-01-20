@@ -3,8 +3,8 @@ use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Environment, Numeric, StackFrame, Ttype};
 use std::collections::HashMap;
 
-use llvm_sys::core::LLVMTypeOf;
-use llvm_sys::prelude::LLVMTypeRef;
+use llvm_sys::core::{LLVMConstArray, LLVMTypeOf};
+use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
 mod conditional;
 mod function;
@@ -15,9 +15,10 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{AsTypeRef, BasicTypeEnum, FunctionType};
+use inkwell::types::{AsTypeRef, BasicType, BasicTypeEnum, FunctionType};
 use inkwell::values::{
-    AnyValue, AnyValueEnum, AsValueRef, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
+    AnyValue, AnyValueEnum, ArrayValue, AsValueRef, BasicValue, BasicValueEnum, FunctionValue,
+    IntValue, PointerValue,
 };
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
@@ -114,7 +115,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         compiler.compile_program(program)
     }
 
-    fn add_return_value(&mut self, v: AnyValueEnum) {
+    fn add_return_value(&mut self, v: AnyValueEnum<'ctx>) {
         match v {
             AnyValueEnum::IntValue(_) => {
                 self.builder.build_return(Some(&v.into_int_value()));
@@ -132,66 +133,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.builder.build_return(Some(&v.into_struct_value()));
             }
 
+            AnyValueEnum::PointerValue(_) => {
+                self.builder.build_return(Some(&v.into_struct_value()));
+            }
+
             _ => {
                 self.builder.build_return(None);
             }
-        }
-    }
-    fn type_to_llvm_type(&self, ttype: Ttype) -> BasicTypeEnum {
-        match ttype {
-            Ttype::Numeric(Numeric::Int) => self.context.i64_type().into(),
-            Ttype::Bool => self.context.bool_type().into(),
-            Ttype::Numeric(Numeric::Num) => self.context.f64_type().into(),
-            Ttype::Tuple(ts) => {
-                let llvm_types = ts
-                    .iter()
-                    .map(|x| self.type_to_llvm_type(x.clone()))
-                    .collect::<Vec<_>>();
-
-                self.context
-                    .struct_type(llvm_types.as_slice(), false)
-                    .into()
-            }
-            _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
-        }
-    }
-
-    fn type_to_llvm_array_type(&self, ttype: Ttype, size: u32) -> BasicTypeEnum {
-        match ttype {
-            Ttype::Numeric(Numeric::Int) => self.context.i64_type().array_type(size).into(),
-            Ttype::Bool => self.context.bool_type().array_type(size).into(),
-            Ttype::Numeric(Numeric::Num) => self.context.f64_type().array_type(size).into(),
-            Ttype::Tuple(ts) => {
-                let llvm_types = ts
-                    .iter()
-                    .map(|x| self.type_to_llvm_type(x.clone()))
-                    .collect::<Vec<_>>();
-
-                self.context
-                    .struct_type(llvm_types.as_slice(), false)
-                    .array_type(size)
-                    .into()
-            }
-            _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
-        }
-    }
-
-    fn type_to_llvm_fn(&self, ttype: Ttype) -> FunctionType<'ctx> {
-        match ttype {
-            Ttype::Numeric(Numeric::Int) => self.context.i64_type().fn_type(&[], false),
-            Ttype::Bool => self.context.bool_type().fn_type(&[], false),
-            Ttype::Numeric(Numeric::Num) => self.context.f64_type().fn_type(&[], false),
-            Ttype::Tuple(ts) => {
-                let llvm_types = ts
-                    .iter()
-                    .map(|x| self.type_to_llvm_type(x.clone()))
-                    .collect::<Vec<_>>();
-
-                self.context
-                    .struct_type(llvm_types.as_slice(), false)
-                    .fn_type(&[], false)
-            }
-            _ => self.context.void_type().fn_type(&[], false),
         }
     }
 
@@ -199,6 +147,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let main_fn = self.module.add_function(
             "main",
             self.type_to_llvm_fn(program.last().unwrap().ttype()),
+            // self.context.void_type().fn_type(&[], false),
             None,
         );
 
@@ -207,9 +156,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.push_fn_stack(&main_fn);
 
         let mut v = None;
+
         for stmt in program {
             v = self.codegen(stmt);
         }
+
+        // let b_value_enum = BasicValueEnum::(
+        //     self.context.void_type(), // .const_int(TryInto::try_into(0).unwrap(), true),
+        // );
+
+        // self.builder.build_return(None);
 
         if let Some(v) = v {
             self.add_return_value(v);
@@ -442,13 +398,34 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     let llvm_list_type = self
                         .type_to_llvm_array_type(*list_type.clone(), es.len().try_into().unwrap());
 
-                    // self.context.const_array()
+                    let array_alloca = self.builder.build_array_alloca(
+                        llvm_list_type,
+                        self.context
+                            .i32_type()
+                            .const_int(es.len().try_into().unwrap(), false),
+                        "array_alloca",
+                    );
 
-                    // let array_alloca =
-                    //     self.builder
-                    //         .build_array_alloca(llvm_list_type, es.len(), "array_alloca");
-                    None
-                    // Some(array_alloca.into())
+                    let mut values: Vec<LLVMValueRef> =
+                        es.iter().map(|val| val.as_value_ref()).collect();
+
+                    for (i, v) in es.iter().enumerate() {
+                        unsafe {
+                            let gep = self.builder.build_in_bounds_gep(
+                                llvm_list_type,
+                                array_alloca,
+                                &[self
+                                    .context
+                                    .i32_type()
+                                    .const_int(TryInto::try_into(i).unwrap(), true)],
+                                "inbounds_gep",
+                            );
+
+                            self.builder.build_store(gep, to_basic_value_enum(*v));
+                        };
+                    }
+
+                    Some(array_alloca.as_any_value_enum())
                 } else {
                     None
                 }
@@ -495,8 +472,38 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(AnyValueEnum::IntValue(value))
             }
             Ast::String(s) => {
+                // Ast::Tuple(exprs, ttype) => {
+                //     let es: Vec<AnyValueEnum> =
+                //         exprs.iter().map(|e| self.codegen(e).unwrap()).collect();
+                //     let struct_val =
+                //         self.context.const_struct(
+                //             es.iter()
+                //                 .map(|v| to_basic_value_enum(*v))
+                //                 .collect::<Vec<_>>()
+                //                 .as_slice(),
+                //             false,
+                //         );
+                //     Some(struct_val.into())
+                // }
+
                 let value = self.context.const_string(s.as_bytes(), true);
-                Some(AnyValueEnum::ArrayValue(value))
+                let size = self
+                    .context
+                    .i64_type()
+                    .const_int(TryInto::try_into(s.len()).unwrap(), true);
+                let es: Vec<AnyValueEnum> = [value.into(), size.into()].to_vec();
+
+                let struct_val =
+                    self.context.const_struct(
+                        es.iter()
+                            .map(|v| to_basic_value_enum(*v))
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                        false,
+                    );
+                Some(struct_val.into())
+
+                // Some(AnyValueEnum::ArrayValue(value))
             }
             _ => None,
         }

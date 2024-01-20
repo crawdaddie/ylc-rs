@@ -7,7 +7,11 @@ use clap::Parser;
 use codegen::Compiler;
 // use dylib::DynamicLibrary;
 use inkwell::context::Context;
+use inkwell::module::Module;
 use inkwell::passes::PassManager;
+use inkwell::targets::{
+    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
+};
 use inkwell::types::BasicTypeEnum;
 use inkwell::OptimizationLevel;
 use parser::Program;
@@ -17,6 +21,7 @@ mod parser;
 mod symbols;
 mod typecheck;
 use std::error::Error;
+use std::process::Command;
 
 // mod repl;
 // use repl::repl;
@@ -27,6 +32,9 @@ struct Arguments {
     code: bool,
     #[clap(long, short, action)]
     interactive: bool,
+
+    #[clap(long, short, action)]
+    object: bool,
 
     input: Option<String>,
 }
@@ -41,9 +49,42 @@ fn read_file_to_string(file_path: &str) -> Result<String, io::Error> {
     Ok(contents)
 }
 
+pub fn write_to_object_file(module: &Module, output_filename: &str) -> Result<(), String> {
+    let _ = Target::initialize_native(&InitializationConfig::default());
+    let target_triple = TargetMachine::get_default_triple();
+    let cpu = TargetMachine::get_host_cpu_name().to_string();
+    let features = TargetMachine::get_host_cpu_features().to_string();
+
+    let target = Target::from_triple(&target_triple).map_err(|e| format!("{:?}", e))?;
+
+    let target_machine = target
+        .create_target_machine(
+            &target_triple,
+            &cpu,
+            &features,
+            OptimizationLevel::Default,
+            RelocMode::Default,
+            CodeModel::Default,
+        )
+        .ok_or_else(|| "Unable to create target machine!".to_string())?;
+
+    target_machine
+        .write_to_file(module, FileType::Object, output_filename.as_ref())
+        .map_err(|e| format!("{:?}", e))
+}
+pub fn link(obj_file: &str, exe_name: &str) {
+    let _ = Command::new("clang")
+        .arg("-o")
+        .arg(exe_name)
+        .arg(obj_file)
+        .output()
+        .expect("Failed to execute command");
+}
+
 fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
     let context = Context::create();
     let module = context.create_module("ylc");
+    // let ee = module.create_jit_execution_engine(OptimizationLevel::None)?;
     let builder = context.create_builder();
     // Create FPM
     let fpm = PassManager::create(&module);
@@ -57,45 +98,10 @@ fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
     fpm.add_instruction_combining_pass();
     fpm.add_reassociate_pass();
     fpm.initialize();
-    let main_fn = Compiler::compile(&context, &builder, &fpm, &module, program)?;
+    let _main_fn = Compiler::compile(&context, &builder, &fpm, &module, program)?;
     module.print_to_stderr();
-
-    let ee = module.create_jit_execution_engine(OptimizationLevel::None)?;
-    let name = main_fn.get_name().to_str().unwrap().to_string();
-    let ret_type = main_fn.get_type().get_return_type();
-
-    match ret_type {
-        Some(BasicTypeEnum::IntType(i)) if i.get_bit_width() == 1 => unsafe {
-            let compiled_fn = ee
-                .get_function::<unsafe extern "C" fn() -> bool>(name.as_str())
-                .unwrap();
-            println!("=> {:?}", compiled_fn.call());
-            // println!("{:?}", compiled_fn);
-        },
-        Some(BasicTypeEnum::IntType(i)) => unsafe {
-            let compiled_fn = ee
-                .get_function::<unsafe extern "C" fn() -> i64>(name.as_str())
-                .unwrap();
-            println!("=> {:?}", compiled_fn.call());
-
-            // println!("{:?}", compiled_fn);
-        },
-
-        Some(BasicTypeEnum::FloatType(_f)) => unsafe {
-            let compiled_fn = ee
-                .get_function::<unsafe extern "C" fn() -> f64>(name.as_str())
-                .unwrap();
-            println!("=> {:?}", compiled_fn.call());
-        },
-        Some(BasicTypeEnum::StructType(s)) => unsafe {
-            let compiled_fn = ee
-                .get_function::<unsafe extern "C" fn() -> (i64, i64, i64)>(name.as_str())
-                .unwrap();
-            println!("=> {:?}", compiled_fn.call());
-        },
-        _ => {}
-    }
-
+    write_to_object_file(&module, "./object")?;
+    link("./object", "exe");
     Ok(())
 }
 
@@ -116,13 +122,7 @@ fn main() -> Result<(), io::Error> {
     }
     println!("\x1b[1;0m");
 
-    // let lib_path = Path::new("/Users/adam/projects/langs/ylc/libs/libyalce_synth.so");
-    // let x = DynamicLibrary::open(Some(lib_path)).unwrap();
-
     let _ = compile_program(&program);
-    // let _ = repl(|line| {
-    //     println!("Line {}", line);
-    // });
 
     Ok(())
 }

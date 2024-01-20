@@ -1,0 +1,6 @@
+let printd = fn (i: int): int 
+let printstr = fn (i: int, s: str): int 
+let printc = fn (s: str): int 
+
+printd(200)
+printstr("hello")

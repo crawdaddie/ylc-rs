@@ -1,0 +1,5 @@
+let printd = fn (i: int): int
+let a = [1, 2, 3]
+printd(a[0])
+
+

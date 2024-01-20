@@ -60,10 +60,12 @@ impl ConstraintGenerator {
         match fn_expr {
             Ast::Fn(params_vec, body, ttype) => {
                 let mut fn_types_vec = self.fn_proto(params_vec);
-                let ret_type = self.body(body);
-                fn_types_vec.push(ret_type);
+                if !body.is_empty() {
+                    let ret_type = self.body(body);
+                    fn_types_vec.push(ret_type);
 
-                self.push_constraint(ttype.clone(), Ttype::Fn(fn_types_vec));
+                    self.push_constraint(ttype.clone(), Ttype::Fn(fn_types_vec));
+                }
             }
             _ => {
                 panic!("no fn after declaration!")
