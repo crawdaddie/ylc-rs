@@ -58,6 +58,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         for p in params {
             match p {
                 Ast::VarArg => {
+                    // println!("var arg fn: {:?}", fn_type);
                     is_var_arg = true;
                 }
                 Ast::Id(_, _) => {

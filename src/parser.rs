@@ -407,10 +407,14 @@ impl Parser {
                     }
                     (p, None) => params.push(Ast::Id(p, tvar())),
                 },
-                Token::TripleDot => params.push(Ast::VarArg),
+                Token::TripleDot => {
+                    params.push(Ast::VarArg);
+                    self.advance();
+                }
                 _ => panic!(),
             }
         }
+
         self.advance();
         params
     }

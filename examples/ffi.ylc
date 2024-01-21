@@ -1,6 +1,9 @@
-let printd = fn (i: int): int 
-let printstr = fn (i: int, s: str): int 
-let printc = fn (s: str): int 
+let printf = fn (fmt: str, ...): int 
+printf(
+"
+hello %d %d
 
-printd(200)
-printstr("hello")
+%d
+
+",
+3, 2, 4)

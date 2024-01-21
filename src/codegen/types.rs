@@ -25,19 +25,26 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().into(),
             Ttype::Bool => self.context.bool_type().into(),
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().into(),
+            // Ttype::Str => self
+            //     .context
+            //     .struct_type(
+            //         &[
+            //             self.context
+            //                 .i8_type()
+            //                 .ptr_type(AddressSpace::default())
+            //                 .into(),
+            //             self.context.i64_type().into(),
+            //         ],
+            //         false,
+            //     )
+            //     .into(),
+            //
             Ttype::Str => self
                 .context
-                .struct_type(
-                    &[
-                        self.context
-                            .i8_type()
-                            .ptr_type(AddressSpace::default())
-                            .into(),
-                        self.context.i64_type().into(),
-                    ],
-                    false,
-                )
+                .i8_type()
+                .ptr_type(AddressSpace::default())
                 .into(),
+
             Ttype::Tuple(ts) => {
                 let llvm_types = ts
                     .iter()

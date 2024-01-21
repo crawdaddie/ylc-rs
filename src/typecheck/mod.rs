@@ -18,8 +18,20 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
     match ast {
         Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs, env),
         Ast::FnDeclaration(id, fn_expr) => {
+            // println!("(bound func for recursive calls?) {:?}", env);
+
+            // let e = env.push().unwrap();
+            // env.push();
+            env.bind_symbol(id.clone(), Symbol::Function(Ttype::FnRecRef));
+
             update_types(&mut *fn_expr, subs, env);
-            env.bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()))
+            env.bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()));
+            println!(
+                "binding fn_expr: {:?} {:?} env: {:?}",
+                id,
+                fn_expr.ttype(),
+                env
+            );
         }
         Ast::TypeDeclaration(_id, _type_expr) => {}
         Ast::Id(_id, ttype) => {
@@ -87,8 +99,8 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             }
         }
         Ast::Call(ref mut callee_box, ref mut params_vec, ttype) => {
+            println!("call: {:?} -- {:?}", *callee_box, env);
             update_types(&mut *callee_box, subs, env);
-
             for a in &mut *params_vec {
                 update_types(a, subs, env);
             }
@@ -102,13 +114,13 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
                         *fn_ref_type = spec_fn_type;
                         fn_ref_type
                     }
+                    // Some(Symbol::Function(Ttype::FnRecRef)) => {
+                    //     println!("found recursive function ref {:?}", env);
+                    //     &Ttype::FnRecRef
+                    // }
                     Some(Symbol::Function(fn_type)) => fn_type,
                     _ => panic!("Typecheck: fn {fn_name} not found in scope"),
                 };
-                println!(
-                    "handle curried func??? {:?} {:?} {:?}",
-                    params_vec, ttype, fn_type
-                );
                 match fn_type {
                     Ttype::Fn(ts) if ts.len() == params_vec.len() + 1 => {
                         *ttype = ts.last().unwrap().clone();
@@ -148,6 +160,7 @@ pub fn infer_types(expr: &mut Program) {
     let mut env = Env::<Symbol>::new();
     env.push();
     for e in expr {
+        // println!("update types {:?}", e);
         update_types(e, &subs, &mut env);
     }
 }
@@ -228,34 +241,46 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn generic_function() {
-    //     let input = r#"
-    //     let f = fn (a) {
-    //         a + 1
-    //     }
-    //     f(1)
-    //     "#;
-    //
-    //     let mut parser = Parser::new(Lexer::new(input.into()));
-    //     let mut program = parser.parse_program();
-    //     infer_types(&mut program);
-    //
-    //     if let Ast::Call(fn_id, args, Ttype::Application(_, app_types, _)) = program[1].clone() {
-    //         let mut fn_types = vec![];
-    //         if let Ast::Id(_, fn_type) = *fn_id {
-    //             let transformed_fn_type = fn_type.transform_generic(app_types);
-    //             println!("call type {:?}", transformed_fn_type.fn_return().unwrap());
-    //             if let Ttype::Fn(fn_types_vec) = fn_type {
-    //                 fn_types = fn_types_vec;
-    //             } else {
-    //                 panic!()
-    //             }
-    //         };
-    //         if fn_types.is_empty() {
-    //             panic!()
-    //         }
-    //         assert!(false);
-    //     }
-    // }
+    #[test]
+    fn recursive_function() {
+        let input = r#"
+        let fib = fn(n): int {
+          if n < 2 {
+            n
+          } else {
+            fib(n - 1) + fib(n - 2)
+          }
+        }
+        fib(10)
+        "#;
+
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let mut program = parser.parse_program();
+        infer_types(&mut program);
+
+        // println!("----\n");
+        // for s in &program {
+        //     println!("{:?}\n", s);
+        // }
+
+        if let Ast::Call(fn_id, _args, _ttype) = program[1].clone() {
+            let mut fn_types = vec![];
+            if let Ast::Id(_, fn_type) = *fn_id {
+                if let Ttype::Fn(fn_types_vec) = fn_type {
+                    fn_types = fn_types_vec;
+                } else {
+                    panic!()
+                }
+            };
+            if fn_types.is_empty() {
+                panic!()
+            }
+
+            println!("rec func {:?}", fn_types);
+            assert_eq!(fn_types, vec![tint(), tint()]);
+            // panic!();
+            // assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
+            // assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
+        }
+    }
 }

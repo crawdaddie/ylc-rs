@@ -1,4 +1,7 @@
-let fib = fn (a: int, b: int): int {
+let printf = fn (fmt: str, ...): int 
+let fib = fn (a, b) {
   a + b
 }
-fib(1, 3)
+
+printf("%d
+", fib(1, 3))

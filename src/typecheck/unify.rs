@@ -7,6 +7,7 @@ use std::{collections::HashMap, iter::zip};
 
 pub type Substitutions = HashMap<Ttype, Ttype>;
 pub fn lookup_contained_types(t: Ttype, subs: &Substitutions) -> Ttype {
+    // println!("{:?} -- {:?}", t, subs);
     match &t {
         Ttype::Var(_t_name) => {
             if let Some(t_lookup) = subs.get(&t) {

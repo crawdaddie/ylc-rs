@@ -29,6 +29,7 @@ pub enum Ttype {
     List(Box<Ttype>),
 
     Fn(Vec<Ttype>),
+    FnRecRef,
 
     Var(String), // 'x
 
@@ -64,6 +65,10 @@ impl fmt::Debug for Ttype {
                         .join("->")
                 );
                 Ok(())
+            }
+
+            Ttype::FnRecRef => {
+                write!(f, "RecursiveRef")
             }
             // Ttype::Ptr => write!(f, "Ttype::Ptr"),
             Ttype::List(inner_type) => write!(f, "Ttype::List({:?})", inner_type),

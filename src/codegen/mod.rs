@@ -435,8 +435,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Fn(_params, _body, _ttype) => None,
             Ast::Call(callable, args, _ttype) => match *callable.clone() {
                 Ast::Id(fn_name, specific_type) => {
-                    let callable = self.get_callable(fn_name, &specific_type);
-                    self.compile_call(callable.unwrap(), args)
+                    let callable = self.get_callable(fn_name, &specific_type).unwrap();
+                    let is_var_arg = callable.get_type().is_var_arg();
+                    println!(
+                        "call [is var arg {:?}] {:?} {:?}",
+                        is_var_arg, specific_type, args
+                    );
+                    self.compile_call(callable, args)
                 }
                 _ => None,
             },
@@ -472,38 +477,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(AnyValueEnum::IntValue(value))
             }
             Ast::String(s) => {
-                // Ast::Tuple(exprs, ttype) => {
-                //     let es: Vec<AnyValueEnum> =
-                //         exprs.iter().map(|e| self.codegen(e).unwrap()).collect();
-                //     let struct_val =
-                //         self.context.const_struct(
-                //             es.iter()
-                //                 .map(|v| to_basic_value_enum(*v))
-                //                 .collect::<Vec<_>>()
-                //                 .as_slice(),
-                //             false,
-                //         );
-                //     Some(struct_val.into())
-                // }
-
-                let value = self.context.const_string(s.as_bytes(), true);
-                let size = self
-                    .context
-                    .i64_type()
-                    .const_int(TryInto::try_into(s.len()).unwrap(), true);
-                let es: Vec<AnyValueEnum> = [value.into(), size.into()].to_vec();
-
-                let struct_val =
-                    self.context.const_struct(
-                        es.iter()
-                            .map(|v| to_basic_value_enum(*v))
-                            .collect::<Vec<_>>()
-                            .as_slice(),
-                        false,
-                    );
-                Some(struct_val.into())
-
+                // let value = self.context.const_string(s.as_bytes(), true);
                 // Some(AnyValueEnum::ArrayValue(value))
+
+                let value = self.builder.build_global_string_ptr(s, s);
+                Some(AnyValueEnum::PointerValue(value.as_pointer_value()))
             }
             _ => None,
         }

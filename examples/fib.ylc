@@ -1,7 +1,12 @@
+# let printd = fn (i: int): int 
+
+let printf = fn (fmt: str, ...): int 
 let fib = fn(n): int {
-  match n
-  | 0 -> 0
-  | 1 -> 1
-  | _ -> fib(n - 1) + fib(n - 2)
+  if n < 2 {
+    n
+  } else {
+    fib(n - 1) + fib(n - 2)
+  }
 }
-fib(10)
+# fib(10)
+printf("%d", fib(10))
