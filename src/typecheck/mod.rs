@@ -10,33 +10,128 @@ mod unify;
 use constraints::ConstraintGenerator;
 use unify::unify_constraints;
 
+fn substitute(ttype: &mut Ttype, subs: &Substitutions) {
+    match ttype {
+        Ttype::Var(_) => {
+            if let Some(replace) = subs.get(ttype) {
+                *ttype = replace.clone();
+            }
+        }
+        Ttype::Fn(ts) => {
+            for t in ts.iter_mut() {
+                substitute(t, subs)
+            }
+        }
+        Ttype::Tuple(ts) => {
+            for t in ts.iter_mut() {
+                substitute(t, subs)
+            }
+        }
+        Ttype::MaxNumeric(ts) => {
+            for t in ts.iter_mut() {
+                substitute(t, subs)
+            }
+        }
+        Ttype::List(t) => substitute(t, subs),
+        Ttype::Nth(t, i) => substitute(t, subs),
+        _ => (),
+    }
+}
+
+pub fn update_ast_types(ast: &mut Ast, subs: &Substitutions) {
+    match ast {
+        Ast::Let(_id, _type_expr, Some(value)) => update_ast_types(&mut *value, subs),
+        Ast::FnDeclaration(id, fn_expr) => {
+            update_ast_types(&mut *fn_expr, subs);
+        }
+        Ast::TypeDeclaration(_id, _type_expr) => {}
+        Ast::Id(_id, ttype) => {
+            substitute(ttype, subs);
+        }
+        Ast::Fn(params_vec, body, ttype) => {
+            substitute(ttype, subs);
+            for p in params_vec {
+                update_ast_types(p, subs);
+            }
+            for s in body {
+                update_ast_types(s, subs);
+            }
+        }
+
+        Ast::Binop(_token, left_box, right_box, ttype) => {
+            substitute(ttype, subs);
+
+            // self.binop(token.clone(), &*left_box, &*right_box, ttype.clone());
+            update_ast_types(&mut *left_box, subs);
+            update_ast_types(&mut *right_box, subs);
+        }
+
+        Ast::Unop(_token, operand_box, ttype) => {
+            substitute(ttype, subs);
+            update_ast_types(&mut *operand_box, subs);
+        }
+
+        Ast::Tuple(exprs_vec, ttype) => {
+            substitute(ttype, subs);
+            for x in exprs_vec {
+                update_ast_types(x, subs);
+            }
+        }
+
+        Ast::List(exprs_vec, ttype) => {
+            substitute(ttype, subs);
+            for x in exprs_vec {
+                update_ast_types(x, subs);
+            }
+        }
+
+        Ast::Index(object_box, index_box, ttype) => {
+            substitute(ttype, subs);
+            update_ast_types(&mut *object_box, subs);
+            update_ast_types(&mut *index_box, subs);
+        }
+
+        Ast::Assignment(assignee_box, value_box, ttype) => {
+            substitute(ttype, subs);
+            update_ast_types(&mut *assignee_box, subs);
+            update_ast_types(&mut *value_box, subs);
+        }
+        Ast::If(condition, then, elze, ttype) => {
+            substitute(ttype, subs);
+            update_ast_types(&mut *condition, subs);
+            for t in then {
+                update_ast_types(t, subs);
+            }
+            if let Some(e) = elze {
+                for t in e {
+                    update_ast_types(t, subs);
+                }
+            }
+        }
+        Ast::Call(ref mut callee_box, ref mut params_vec, ttype) => {
+            update_ast_types(&mut *callee_box, subs);
+            for a in &mut *params_vec {
+                update_ast_types(a, subs);
+            }
+        }
+        _ => (),
+    }
+}
+
 pub fn apply_substitution(t: &mut Ttype, subs: &Substitutions) {
     *t = lookup_contained_types(t.clone(), subs);
 }
-
 pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) {
     match ast {
         Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs, env),
         Ast::FnDeclaration(id, fn_expr) => {
-            // println!("(bound func for recursive calls?) {:?}", env);
-
-            // let e = env.push().unwrap();
-            // env.push();
             env.bind_symbol(id.clone(), Symbol::Function(Ttype::FnRecRef));
-
             update_types(&mut *fn_expr, subs, env);
             env.bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()));
-            println!(
-                "binding fn_expr: {:?} {:?} env: {:?}",
-                id,
-                fn_expr.ttype(),
-                env
-            );
         }
         Ast::TypeDeclaration(_id, _type_expr) => {}
         Ast::Id(_id, ttype) => {
             apply_substitution(ttype, subs);
-            // self.id(id.clone(), ttype.clone());
         }
         Ast::Fn(params_vec, body, ttype) => {
             apply_substitution(ttype, subs);
@@ -99,7 +194,6 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             }
         }
         Ast::Call(ref mut callee_box, ref mut params_vec, ttype) => {
-            // println!("call: {:?} -- {:?}", *callee_box, env);
             update_types(&mut *callee_box, subs, env);
             for a in &mut *params_vec {
                 update_types(a, subs, env);
@@ -114,10 +208,6 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
                         *fn_ref_type = spec_fn_type;
                         fn_ref_type
                     }
-                    // Some(Symbol::Function(Ttype::FnRecRef)) => {
-                    //     println!("found recursive function ref {:?}", env);
-                    //     &Ttype::FnRecRef
-                    // }
                     Some(Symbol::Function(fn_type)) => fn_type,
                     _ => panic!("Typecheck: fn {fn_name} not found in scope"),
                 };
@@ -163,7 +253,6 @@ pub fn infer_types(expr: &mut Program) {
         // println!("update types {:?}", e);
         update_types(e, &subs, &mut env);
     }
-    println!("TYPECHECK ENV {:?}", env);
 }
 #[cfg(test)]
 mod tests {
@@ -183,10 +272,6 @@ mod tests {
         let mut parser = Parser::new(Lexer::new(input.into()));
         let mut program = parser.parse_program();
         infer_types(&mut program);
-        for p in program.clone() {
-            println!("stmt: {:?}", p);
-        }
-        // println!("curried call: {:?}", program);
 
         if let Ast::Call(fn_id, args, ttype) = program[1].clone() {
             let mut fn_types = vec![];
@@ -278,9 +363,12 @@ mod tests {
                 panic!()
             }
 
-            println!("REC FUNC TEST\n{:?}\n{:?}\n", fn_types, program[1]);
+            // println!(
+            //     "REC FUNC TEST\n{:?}\n\n{:?}\n\n{:?}\n\n",
+            //     fn_types, program[0], program[1]
+            // );
             assert_eq!(fn_types, vec![tint(), tint()]);
-            panic!();
+            // panic!();
             // assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
             // assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
         }

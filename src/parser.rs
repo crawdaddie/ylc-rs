@@ -455,7 +455,6 @@ impl Parser {
 
     fn parse_infix_expr(&mut self, left: Option<Ast>) -> Option<Ast> {
         let tok = self.current.clone();
-        // println!("parse infix {:?} {:?}", left, tok);
         let prec = token_to_precedence(&tok);
 
         self.advance();
@@ -592,7 +591,6 @@ impl Parser {
             Token::LeftSq => self.parse_array(),
 
             _ => {
-                // self.error_no_prefix_parser();
                 return None;
             }
         };
@@ -1019,5 +1017,21 @@ mod tests {
             vec![(call_expr!(id_expr!("f"), vec![int_expr!(1)]))],
             program,
         )
+    }
+
+    #[test]
+    fn call_exprs_add() {
+        let input = r#"(f(1) + f(2))"#;
+        // let input = r#"1 + 2"#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+        assert_eq!(
+            vec![binop_expr!(
+                Token::Plus,
+                call_expr!(id_expr!("f"), vec![int_expr!(1)]),
+                call_expr!(id_expr!("f"), vec![int_expr!(2)])
+            )],
+            program,
+        );
     }
 }

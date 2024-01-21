@@ -9,7 +9,7 @@ use super::{to_basic_value_enum, Compiler, GenericFns, Symbol};
 
 use crate::parser::Ast;
 use crate::symbols::{Env, Environment, Numeric, StackFrame, Ttype};
-use crate::typecheck::update_types;
+use crate::typecheck::{apply_substitution, update_ast_types};
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num
@@ -162,10 +162,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 subs.insert(p.ttype(), t.clone());
             }
         } else {
-            panic!("Codegen error");
+            panic!("Error compiling specific variant of generic function");
         };
 
-        update_types(fn_expr, &subs, &mut Env::<crate::symbols::Symbol>::new());
+        update_ast_types(fn_expr, &subs);
 
         if let Ast::Fn(params, body, fn_type) = fn_expr {
             self.codegen_fn(
@@ -187,7 +187,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match self.env.lookup(fn_name.clone()) {
             Some(Symbol::Function(fn_type)) if fn_type.is_generic() => {
                 let mangled_variant_name = self.generic_variant_name(fn_name.as_str(), spec_type);
-                // println!("mangled: {:?}", mangled_variant_name);
+
                 match self.get_function(mangled_variant_name.as_str()) {
                     Some(fn_value) => Some(fn_value),
 
@@ -215,8 +215,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         callable_fn: FunctionValue<'ctx>,
         args: &[Ast],
     ) -> Option<AnyValueEnum<'ctx>> {
-        // println!("compile call {:?} {:?} {:?}", callable_fn, args, self.env);
-
         let compiled_args: Vec<BasicValueEnum> = args
             .iter()
             .map(|a| to_basic_value_enum(self.codegen(a).unwrap()))

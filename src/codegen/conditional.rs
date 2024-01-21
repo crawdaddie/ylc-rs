@@ -31,6 +31,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         // build else block
         let else_val = if let Some(elze) = elze {
             self.builder.position_at_end(else_bb);
+            println!("ELSE: {:?}", elze);
 
             self.codegen_block(elze)
         } else {

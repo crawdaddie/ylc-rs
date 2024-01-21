@@ -254,11 +254,12 @@ impl Lexer {
             if c == '"' && self.input[char_index - 1] != '\\' {
                 break;
             }
+
             s.push(c);
         }
 
         self.advance(s.len());
-        Token::String(s)
+        Token::String(s.replace("\\n", "\n"))
     }
 
     fn scan_char(&mut self) -> Token {
