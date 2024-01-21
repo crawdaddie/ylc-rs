@@ -99,7 +99,7 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             }
         }
         Ast::Call(ref mut callee_box, ref mut params_vec, ttype) => {
-            println!("call: {:?} -- {:?}", *callee_box, env);
+            // println!("call: {:?} -- {:?}", *callee_box, env);
             update_types(&mut *callee_box, subs, env);
             for a in &mut *params_vec {
                 update_types(a, subs, env);
@@ -163,6 +163,7 @@ pub fn infer_types(expr: &mut Program) {
         // println!("update types {:?}", e);
         update_types(e, &subs, &mut env);
     }
+    println!("TYPECHECK ENV {:?}", env);
 }
 #[cfg(test)]
 mod tests {
@@ -251,6 +252,7 @@ mod tests {
             fib(n - 1) + fib(n - 2)
           }
         }
+
         fib(10)
         "#;
 
@@ -276,9 +278,9 @@ mod tests {
                 panic!()
             }
 
-            println!("rec func {:?}", fn_types);
+            println!("REC FUNC TEST\n{:?}\n{:?}\n", fn_types, program[1]);
             assert_eq!(fn_types, vec![tint(), tint()]);
-            // panic!();
+            panic!();
             // assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
             // assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
         }

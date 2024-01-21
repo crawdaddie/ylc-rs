@@ -263,6 +263,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn codegen(&mut self, expr: &Ast) -> Option<AnyValueEnum<'ctx>> {
+        // println!("codegen {:?}", expr);
         match expr {
             Ast::Let(
                 id,
@@ -292,31 +293,35 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(llvm_value)
             }
 
-            Ast::FnDeclaration(id, fn_expr) => match (**fn_expr).clone() {
-                Ast::Fn(_params, _body, fn_type) if fn_type.is_generic() => {
-                    self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
+            Ast::FnDeclaration(id, fn_expr) => {
+                println!("declare {:?} {:?}", id, fn_expr);
+                match (**fn_expr).clone() {
+                    Ast::Fn(_params, _body, fn_type) if fn_type.is_generic() => {
+                        self.env.bind_symbol(id.clone(), Symbol::Function(fn_type));
 
-                    self.generic_fns.insert(
-                        id.clone(),
-                        GenericFns {
-                            ast: (**fn_expr).clone(),
-                        },
-                    );
-                    None
-                }
-                Ast::Fn(params, body, fn_type) => {
-                    let func = self.codegen_fn(id, &params, body, fn_type);
-                    self.env
-                        .bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()));
+                        self.generic_fns.insert(
+                            id.clone(),
+                            GenericFns {
+                                ast: (**fn_expr).clone(),
+                            },
+                        );
+                        None
+                    }
+                    Ast::Fn(params, body, fn_type) => {
+                        let func = self.codegen_fn(id, &params, body, fn_type);
+                        self.env
+                            .bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()));
 
-                    func.map(|f| f.as_any_value_enum())
+                        func.map(|f| f.as_any_value_enum())
+                    }
+                    _ => None,
                 }
-                _ => None,
-            },
+            }
 
             Ast::TypeDeclaration(_id, _type_expr) => None,
 
             Ast::Id(id, _ttype) => {
+                // println!("id {:?}", id);
                 if let Some(sym) = self.env.lookup(id.clone()) {
                     match sym {
                         Symbol::FnParam(idx, _ttype) => {
@@ -433,18 +438,20 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::Index(_obj, _idx, _ttype) => None,
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _body, _ttype) => None,
-            Ast::Call(callable, args, _ttype) => match *callable.clone() {
-                Ast::Id(fn_name, specific_type) => {
-                    let callable = self.get_callable(fn_name, &specific_type).unwrap();
-                    let is_var_arg = callable.get_type().is_var_arg();
-                    println!(
-                        "call [is var arg {:?}] {:?} {:?}",
-                        is_var_arg, specific_type, args
-                    );
-                    self.compile_call(callable, args)
+            Ast::Call(callable, args, _ttype) => {
+                println!(
+                    "call - callable: {:?} args {:?}\n{:?}\n{:?}",
+                    callable, args, self.env, self.generic_fns
+                );
+                match *callable.clone() {
+                    Ast::Id(fn_name, specific_type) => {
+                        let callable = self.get_callable(fn_name, &specific_type).unwrap();
+                        let _is_var_arg = callable.get_type().is_var_arg();
+                        self.compile_call(callable, args)
+                    }
+                    _ => None,
                 }
-                _ => None,
-            },
+            }
             // Ast::Body(_stmts, _ttype) => None,
             Ast::If(cond, then, elze, ttype) => {
                 let condition = self.codegen(cond)?.into_int_value();

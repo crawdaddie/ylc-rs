@@ -1,4 +1,6 @@
 let printf = fn (fmt: str, ...): int 
+let malloc = fn (size: int): int 
+
 printf(
 "
 hello %d %d
@@ -7,3 +9,6 @@ hello %d %d
 
 ",
 3, 2, 4)
+
+let x = malloc(32)
+printf("malloced %p\n", x)

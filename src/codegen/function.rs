@@ -156,6 +156,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         spec_types: &Ttype,
     ) -> Option<FunctionValue<'ctx>> {
         let mut subs = HashMap::<Ttype, Ttype>::new();
+
         if let (Ast::Fn(params_vec, _, _), Ttype::Fn(ts)) = (&fn_expr, spec_types) {
             for (p, t) in params_vec.iter().zip(ts) {
                 subs.insert(p.ttype(), t.clone());
@@ -186,6 +187,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         match self.env.lookup(fn_name.clone()) {
             Some(Symbol::Function(fn_type)) if fn_type.is_generic() => {
                 let mangled_variant_name = self.generic_variant_name(fn_name.as_str(), spec_type);
+                // println!("mangled: {:?}", mangled_variant_name);
                 match self.get_function(mangled_variant_name.as_str()) {
                     Some(fn_value) => Some(fn_value),
 
@@ -213,6 +215,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         callable_fn: FunctionValue<'ctx>,
         args: &[Ast],
     ) -> Option<AnyValueEnum<'ctx>> {
+        // println!("compile call {:?} {:?} {:?}", callable_fn, args, self.env);
+
         let compiled_args: Vec<BasicValueEnum> = args
             .iter()
             .map(|a| to_basic_value_enum(self.codegen(a).unwrap()))
