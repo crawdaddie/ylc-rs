@@ -130,7 +130,15 @@ impl Lexer {
                 _ => Token::Assignment,
             },
             '+' => Token::Plus,
-            '-' => Token::Minus,
+            '-' => {
+                match self.peek() {
+                    '>' => {
+                        self.advance(1);
+                        Token::Pipe
+                    }
+                    _ => Token::Minus,
+                }
+            }
             '/' => Token::Slash,
             '*' => Token::Star,
             ',' => Token::Comma,
@@ -208,6 +216,7 @@ impl Lexer {
 
             '"' => self.scan_string(),
             '\'' => self.scan_char(),
+            '_' => Token::Identifier("_".into()),
             _ => {
                 if is_digit(self.ch) {
                     self.scan_number()

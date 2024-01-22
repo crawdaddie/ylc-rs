@@ -124,6 +124,17 @@ macro_rules! call_expr {
     };
 }
 
+#[macro_export]
+macro_rules! match_expr {
+    ($predicate: expr, $arms: expr) => {
+        Ast::Match(Box::new($predicate), $arms, tvar())
+    };
+
+    ($predicate: expr, $arms: expr, %var: expr) => {
+        Ast::Match(Box::new($predicate), $arms, $var)
+    };
+}
+
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Precedence {
     None,
@@ -164,6 +175,7 @@ pub enum Ast {
     Fn(Vec<Ast>, Vec<Ast>, Ttype),
     Call(Box<Ast>, Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
+    Match(Box<Ast>, Vec<(Ast, Ast)>, Ttype),
     VarArg,
 
     // literals
@@ -201,7 +213,8 @@ impl Ast {
             | Ast::Assignment(_, _, t)
             | Ast::Fn(_, _, t)
             | Ast::Call(_, _, t)
-            | Ast::If(_, _, _, t) => t.clone(),
+            | Ast::If(_, _, _, t)
+            | Ast::Match(_, _, t) => t.clone(),
 
             Ast::Int8(_i) => Ttype::Numeric(Numeric::Int8),
             Ast::Integer(_i) => Ttype::Numeric(Numeric::Int),
@@ -209,6 +222,7 @@ impl Ast {
             Ast::Bool(_b) => Ttype::Bool,
             Ast::String(_s) => Ttype::Str,
             Ast::VarArg => Ttype::Tuple(vec![]),
+            // Ast::MatchArm(predicate, expr) => expr.ttype(),
         }
     }
 }
@@ -239,6 +253,7 @@ impl PartialEq for Ast {
             (Ast::Number(n1), Ast::Number(n2)) => n1 == n2,
             (Ast::Bool(b1), Ast::Bool(b2)) => b1 == b2,
             (Ast::String(s1), Ast::String(s2)) => s1 == s2,
+            (Ast::Match(x1, arms1, _), Ast::Match(x2, arms2, _)) => x1 == x2 && arms1 == arms2,
             _ => false,
         }
     }
@@ -583,6 +598,30 @@ impl Parser {
         self.parse_expression(Precedence::None)
             .map(|e| assignment_expr!(id.unwrap(), e))
     }
+    fn parse_match_arm(&mut self) -> Option<(Ast, Ast)> {
+        println!("parse match arm: {:?}", self.current);
+        let pattern = self.parse_expression(Precedence::None)?;
+        if self.expect_token(Token::Pipe) {
+            let expr = self.parse_expression(Precedence::None)?;
+            println!("after match arm current: {:?}", self.current);
+            Some((pattern, expr))
+        } else {
+            panic!("Parse error, match arm needs a final expression");
+        }
+    }
+    fn parse_match_expression(&mut self) -> Option<Ast> {
+        self.advance();
+        let matched_expr = self.parse_expression(Precedence::None)?;
+        println!("matched expr {:?}", matched_expr);
+        let mut match_arms: Vec<(Ast, Ast)> = vec![];
+        while self.expect_token(Token::Bar) {
+            let arm = self.parse_match_arm()?;
+            // println!("expr {:?} cur: {:?}", expr, self.current);
+            match_arms.push(arm)
+        }
+
+        Some(match_expr!(matched_expr, match_arms))
+    }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Ast> {
         // prefix
@@ -597,6 +636,7 @@ impl Parser {
             Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expression(),
             Token::Lp => self.parse_grouping(),
             Token::If => self.parse_conditional_expression(),
+            Token::Match => self.parse_match_expression(),
             Token::LeftSq => self.parse_array(),
 
             _ => {
@@ -1039,6 +1079,31 @@ mod tests {
                 Token::Plus,
                 call_expr!(id_expr!("f"), vec![int_expr!(1)]),
                 call_expr!(id_expr!("f"), vec![int_expr!(2)])
+            )],
+            program,
+        );
+    }
+
+    #[test]
+    fn test_match() {
+        let input = r#"
+        match x
+        | x > 1 -> 1
+        | _ -> 2
+        "#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(
+            vec![match_expr!(
+                id_expr!("x"),
+                vec![
+                    (
+                        binop_expr!(Token::Gt, id_expr!("x"), int_expr!(1)),
+                        int_expr!(1)
+                    ),
+                    (id_expr!("_"), int_expr!(2))
+                ]
             )],
             program,
         );
