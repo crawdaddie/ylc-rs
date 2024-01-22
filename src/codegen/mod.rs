@@ -8,6 +8,7 @@ use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
 mod conditional;
 mod function;
+mod lists;
 mod numeric_binop;
 mod numeric_comparison;
 mod types;
@@ -15,7 +16,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{AsTypeRef, BasicType, BasicTypeEnum, FunctionType};
+use inkwell::types::{AsTypeRef, BasicType, BasicTypeEnum, FunctionType, IntType, PointerType};
 use inkwell::values::{
     AnyValue, AnyValueEnum, ArrayValue, AsValueRef, BasicValue, BasicValueEnum, FunctionValue,
     IntValue, PointerValue,
@@ -85,6 +86,7 @@ pub struct Compiler<'a, 'ctx> {
 }
 
 pub fn to_basic_value_enum(x: AnyValueEnum) -> BasicValueEnum {
+    // println!("{:?} to basic value", x);
     match x {
         AnyValueEnum::ArrayValue(v) => v.as_basic_value_enum(),
         AnyValueEnum::IntValue(v) => v.as_basic_value_enum(),
@@ -92,6 +94,8 @@ pub fn to_basic_value_enum(x: AnyValueEnum) -> BasicValueEnum {
         AnyValueEnum::PointerValue(v) => v.as_basic_value_enum(),
         AnyValueEnum::StructValue(v) => v.as_basic_value_enum(),
         AnyValueEnum::VectorValue(v) => v.as_basic_value_enum(),
+        // AnyValueEnum::PointerValue(v) => v.into(),
+        // AnyValueEnum::InstructionValue(v) => v.as
         _ => panic!(),
     }
 }
@@ -336,7 +340,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                                 llvm_val.unwrap(),
                                 format!("load_{id}").as_str(),
                             );
-                            println!("LOADED {:?}", load);
 
                             Some(load.as_any_value_enum())
                         }
@@ -394,49 +397,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(struct_val.into())
             }
 
-            Ast::List(exprs, ttype) => {
-                let es: Vec<AnyValueEnum> =
-                    exprs.iter().map(|e| self.codegen(e).unwrap()).collect();
-                if let Ttype::List(list_type) = ttype {
-                    let llvm_list_type = self
-                        .type_to_llvm_array_type(*list_type.clone(), es.len().try_into().unwrap());
-
-                    let array_alloca = self.builder.build_array_alloca(
-                        llvm_list_type,
-                        self.context
-                            .i32_type()
-                            .const_int(es.len().try_into().unwrap(), false),
-                        "array_alloca",
-                    );
-
-                    let mut values: Vec<LLVMValueRef> =
-                        es.iter().map(|val| val.as_value_ref()).collect();
-
-                    for (i, v) in es.iter().enumerate() {
-                        unsafe {
-                            let gep = self.builder.build_in_bounds_gep(
-                                llvm_list_type,
-                                array_alloca,
-                                &[self
-                                    .context
-                                    .i32_type()
-                                    .const_int(TryInto::try_into(i).unwrap(), true)],
-                                "inbounds_gep",
-                            );
-
-                            self.builder.build_store(gep, to_basic_value_enum(*v));
-                        };
-                    }
-
-                    Some(array_alloca.as_any_value_enum())
-                } else {
-                    None
-                }
-            }
-            Ast::Index(obj, idx, ttype) => {
-                println!("index expr {:?} {:?} {:?}", obj, idx, ttype);
-                None
-            }
+            Ast::List(exprs, ttype) => self.build_list(exprs, ttype),
+            Ast::Index(obj, idx, ttype) => self.get_list_element(obj, idx, ttype),
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _body, _ttype) => None,
             Ast::Call(callable, args, _ttype) => match *callable.clone() {

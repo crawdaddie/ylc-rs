@@ -3,6 +3,7 @@ use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
 use inkwell::module::Module;
 use inkwell::OptimizationLevel;
+use llvm_sys::execution_engine::LLVMCreateJITCompilerForModule;
 
 use std::error::Error;
 
@@ -16,7 +17,7 @@ struct CodeGen<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
-    execution_engine: ExecutionEngine<'ctx>,
+    // execution_engine: ExecutionEngine<'ctx>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -36,21 +37,34 @@ impl<'ctx> CodeGen<'ctx> {
         let sum = self.builder.build_int_add(sum, z, "sum");
 
         self.builder.build_return(Some(&sum));
+        // let mut execution_engine: ExecutionEngine<'ctx>;
+        // unsafe {
+        //     LLVMCreateJITCompilerForModule(
+        //         execution_engine.as_mut_ptr(),
+        //         self.module.,
+        //         OptimizationLevel::None as u32,
+        //     )
+        // }
 
-        unsafe { self.execution_engine.get_function("sum").ok() }
+        let execution_engine = self
+            .module
+            // .clone()
+            .create_jit_execution_engine(OptimizationLevel::None)
+            .unwrap();
+
+        unsafe { execution_engine.get_function("sum").ok() }
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let context = Context::create();
     let module = context.create_module("sum");
-    let execution_engine = module.create_jit_execution_engine(OptimizationLevel::None)?;
 
     let codegen = CodeGen {
         context: &context,
         module,
         builder: context.create_builder(),
-        execution_engine,
+        // execution_engine,
     };
 
     let sum = codegen

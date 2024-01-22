@@ -1,5 +1,5 @@
 use inkwell::{
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
+    types::{AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     AddressSpace,
 };
 
@@ -55,7 +55,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .struct_type(llvm_types.as_slice(), false)
                     .into()
             }
+            Ttype::List(t) => self.type_to_llvm_ptr_type(*t),
             _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
+        }
+    }
+    pub fn type_to_llvm_ptr_type(&self, ttype: Ttype) -> BasicTypeEnum<'ctx> {
+        match self.type_to_llvm_type(ttype) {
+            BasicTypeEnum::ArrayType(v) => v.ptr_type(AddressSpace::default()).into(),
+            BasicTypeEnum::FloatType(v) => v.ptr_type(AddressSpace::default()).into(),
+            BasicTypeEnum::IntType(v) => v.ptr_type(AddressSpace::default()).into(),
+            BasicTypeEnum::PointerType(v) => v.ptr_type(AddressSpace::default()).into(),
+            BasicTypeEnum::StructType(v) => v.ptr_type(AddressSpace::default()).into(),
+            BasicTypeEnum::VectorType(v) => v.ptr_type(AddressSpace::default()).into(),
         }
     }
 
