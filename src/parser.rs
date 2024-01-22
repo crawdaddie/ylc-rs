@@ -561,9 +561,18 @@ impl Parser {
     }
 
     fn parse_index_expr(&mut self, obj: Option<Ast>) -> Option<Ast> {
+        // println!("parse index expr {:?}", obj);
         self.advance();
-        self.parse_expression(Precedence::None)
-            .map(|idx| Ast::Index(Box::new(obj.unwrap()), Box::new(idx), tvar()))
+        let expr = self
+            .parse_expression(Precedence::None)
+            .map(|idx| Ast::Index(Box::new(obj.unwrap()), Box::new(idx), tvar()));
+        // println!("expr {:?}", expr);
+
+        if self.expect_token(Token::RightSq) {
+            expr
+        } else {
+            panic!("Parse error, need to close index expr, expected ]")
+        }
     }
 
     fn parse_assignment_expression(&mut self, id: Option<Ast>) -> Option<Ast> {

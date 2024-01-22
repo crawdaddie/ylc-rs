@@ -433,7 +433,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     None
                 }
             }
-            Ast::Index(_obj, _idx, _ttype) => None,
+            Ast::Index(obj, idx, ttype) => {
+                println!("index expr {:?} {:?} {:?}", obj, idx, ttype);
+                None
+            }
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _body, _ttype) => None,
             Ast::Call(callable, args, _ttype) => match *callable.clone() {

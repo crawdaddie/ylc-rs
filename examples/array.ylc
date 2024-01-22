@@ -1,5 +1,7 @@
-let printd = fn (i: int): int
+let printf = fn (fmt: str, ...): int 
+
 let a = [1, 2, 3]
-printd(a[0])
+printf("%d\n", a[0])
+
 
 
