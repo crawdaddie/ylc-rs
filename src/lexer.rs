@@ -77,6 +77,15 @@ pub struct Lexer {
 fn is_digit(ch: char) -> bool {
     ch.is_ascii_digit()
 }
+
+fn is_valid_kw_start_char(ch: char) -> bool {
+    ch.is_alphabetic() || ch == '_'
+}
+
+fn is_valid_kw_char(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
 impl Lexer {
     pub fn new(input: String) -> Self {
         let chars: Vec<char> = input.chars().collect();
@@ -174,17 +183,21 @@ impl Lexer {
                 }
             }
             '?' => Token::Question,
-            '.' => match (self.peek(), self.peek()) {
-                ('.', '.') => {
-                    self.advance(2);
-                    Token::TripleDot
+            '.' => {
+                let peek1 = self.peek();
+                let peek2 = self.input[self.read_position + 2];
+                match (peek1, peek2) {
+                    ('.', '.') => {
+                        self.advance(2);
+                        Token::TripleDot
+                    }
+                    ('.', _) => {
+                        self.advance(1);
+                        Token::DoubleDot
+                    }
+                    (_, _) => Token::Dot,
                 }
-                ('.', _) => {
-                    self.advance(1);
-                    Token::DoubleDot
-                }
-                (_, _) => Token::Dot,
-            },
+            }
             // Token::Dot,
             '&' => match self.peek() {
                 '&' => {
@@ -216,11 +229,11 @@ impl Lexer {
 
             '"' => self.scan_string(),
             '\'' => self.scan_char(),
-            '_' => Token::Identifier("_".into()),
+            // '_' => Token::Identifier("_".into()),
             _ => {
                 if is_digit(self.ch) {
                     self.scan_number()
-                } else if self.ch.is_alphabetic() {
+                } else if is_valid_kw_start_char(self.ch) {
                     self.scan_keyword()
                 } else {
                     Token::Error
@@ -309,16 +322,11 @@ impl Lexer {
         tok
     }
 
-    // fn scan_identifier(&mut self) -> Token {
-    //     let s = self.read_identifier();
-    //     self.advance(s.len());
-    //     Token::Identifier(s)
-    // }
     fn read_identifier(&self) -> String {
         let mut s = String::new();
         for char_index in self.read_position..self.input.len() {
             let c = self.input[char_index];
-            if !c.is_alphanumeric() {
+            if !(is_valid_kw_char(c)) {
                 break;
             }
             s.push(c);

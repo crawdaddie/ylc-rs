@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use crate::{
     lexer::Token,
     parser::{Ast, Identifier},
@@ -9,6 +11,18 @@ pub type Constraint = (Ttype, Ttype);
 pub struct ConstraintGenerator {
     pub constraints: Vec<Constraint>,
     pub env: Env<Symbol>,
+}
+fn extract_conditional_pattern(ast: &Ast) -> Result<(&Ast, &Ast), String> {
+    let cond = ast;
+    if let Ast::Tuple(ps, _) = cond {
+        if ps.len() != 2 {
+            Err("Unable to create target machine!".to_string())
+        } else {
+            Ok((&ps[0], &ps[1]))
+        }
+    } else {
+        Err("".to_string())
+    }
 }
 
 impl ConstraintGenerator {
@@ -113,6 +127,55 @@ impl ConstraintGenerator {
             _ => panic!(),
         };
     }
+    fn destructure_constraints(&mut self, items: &Vec<Ast>, match_var: &Ast) {
+        for (idx, i) in items.iter().enumerate() {
+            match i {
+                Ast::Id(id, t) => {
+                    self.push_constraint(t.clone(), Ttype::Nth(Box::new(match_var.ttype()), idx));
+                    self.env
+                        .bind_symbol(id.to_string(), Symbol::Variable(t.clone()))
+                }
+                Ast::Unop(Token::DoubleDot, boxed_spread_id, _) => {
+                    if let Ast::Id(spread, t) = *boxed_spread_id.clone() {
+                        // println!("spread {:?}", spread);
+                        self.push_constraint(t.clone(), match_var.ttype());
+                        self.env
+                            .bind_symbol(spread.to_string(), Symbol::Variable(t.clone()))
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    fn conditional_pattern(&mut self, pattern: &Ast, condition: &Ast, match_var: &Ast) {
+        self.push_constraint(pattern.ttype(), match_var.ttype());
+        self.generate_constraints(condition);
+    }
+    fn match_constraints(&mut self, var: &Ast, arms: &Vec<(Ast, Ast)>, ttype: Ttype) {
+        self.generate_constraints(var);
+        let (_, first_expr) = arms.first().unwrap();
+        for (pattern, expr) in arms {
+            self.env.push();
+            match pattern {
+                Ast::List(items, _) => {
+                    self.destructure_constraints(items, var);
+                }
+                Ast::Unop(Token::If, conditional_pattern, _) => {
+                    let (pattern, condition) =
+                        extract_conditional_pattern(conditional_pattern).unwrap();
+                    self.conditional_pattern(pattern, condition, var);
+                }
+                Ast::Id(x, _) if x == "_" => {}
+                _ => {}
+            }
+            self.generate_constraints(expr);
+            // self.push_constraint(pattern.ttype(), Ttype::Bool);
+            self.push_constraint(expr.ttype(), first_expr.ttype());
+            self.env.pop();
+        }
+
+        self.push_constraint(ttype, first_expr.ttype());
+    }
 
     pub fn generate_constraints(&mut self, ast: &Ast) {
         match ast {
@@ -196,12 +259,16 @@ impl ConstraintGenerator {
             }
 
             Ast::List(exprs, ttype) => {
-                for e in exprs {
-                    self.generate_constraints(e);
-                }
-                let te = exprs.first().unwrap();
+                if exprs.is_empty() {
+                    ()
+                } else {
+                    for e in exprs {
+                        self.generate_constraints(e);
+                    }
+                    let te = exprs.first().unwrap();
 
-                self.push_constraint(ttype.clone(), Ttype::List(Box::new(te.ttype())))
+                    self.push_constraint(ttype.clone(), Ttype::List(Box::new(te.ttype())))
+                }
             }
             Ast::Index(obj, idx, ttype) => {
                 self.generate_constraints(obj);
@@ -235,6 +302,7 @@ impl ConstraintGenerator {
                 }
             }
             Ast::Call(callable, args, ttype) => self.call(callable, args, ttype.clone()),
+            Ast::Match(var, arms, ttype) => self.match_constraints(var, arms, ttype.clone()),
             _ => {}
         }
     }

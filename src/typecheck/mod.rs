@@ -225,6 +225,17 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
                 apply_substitution(ttype, subs);
             };
         }
+        Ast::Match(var, arms, ttype) => {
+            update_types(var, subs, env);
+
+            for (pattern, expr) in arms {
+                env.push();
+                update_types(pattern, subs, env);
+                update_types(expr, subs, env);
+                env.pop();
+            }
+            apply_substitution(ttype, subs);
+        }
         _ => (),
     }
 }
@@ -345,11 +356,6 @@ mod tests {
         let mut program = parser.parse_program();
         infer_types(&mut program);
 
-        // println!("----\n");
-        // for s in &program {
-        //     println!("{:?}\n", s);
-        // }
-
         if let Ast::Call(fn_id, _args, _ttype) = program[1].clone() {
             let mut fn_types = vec![];
             if let Ast::Id(_, fn_type) = *fn_id {
@@ -363,14 +369,7 @@ mod tests {
                 panic!()
             }
 
-            // println!(
-            //     "REC FUNC TEST\n{:?}\n\n{:?}\n\n{:?}\n\n",
-            //     fn_types, program[0], program[1]
-            // );
             assert_eq!(fn_types, vec![tint(), tint()]);
-            // panic!();
-            // assert_eq!(ttype, Ttype::Fn(fn_types[2..].into()));
-            // assert_eq!(args, vec![int_expr!(1), int_expr!(2)]);
         }
     }
 }

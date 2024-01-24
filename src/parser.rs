@@ -157,10 +157,10 @@ pub type Identifier = String;
 pub enum Ast {
     Let(
         Identifier,
-        Option<Ttype>, // optional explicit type parameter
-        //
+        Option<Ttype>,    // optional explicit type parameter
         Option<Box<Ast>>, // optional immediate assignment expression
     ),
+    // Destructure(),
     FnDeclaration(Identifier, Box<Ast>),
     TypeDeclaration(Identifier, Box<Ast>),
 
@@ -222,6 +222,7 @@ impl Ast {
             Ast::Bool(_b) => Ttype::Bool,
             Ast::String(_s) => Ttype::Str,
             Ast::VarArg => Ttype::Tuple(vec![]),
+            // Ast::Destructure() =>
             // Ast::MatchArm(predicate, expr) => expr.ttype(),
         }
     }
@@ -468,6 +469,15 @@ impl Parser {
             .map(|expr| unop_expr!(tok, expr))
     }
 
+    fn parse_spread_expression(&mut self) -> Option<Ast> {
+        let tok = self.current.clone();
+        let prec = token_to_precedence(&tok);
+        self.advance();
+
+        self.parse_expression(prec)
+            .map(|expr| unop_expr!(tok, expr))
+    }
+
     fn parse_infix_expr(&mut self, left: Option<Ast>) -> Option<Ast> {
         let tok = self.current.clone();
         let prec = token_to_precedence(&tok);
@@ -495,6 +505,7 @@ impl Parser {
 
     fn parse_array(&mut self) -> Option<Ast> {
         self.advance();
+        // println!("parse array cons {:?}", self.current);
         let mut array_elements: Vec<Ast> = vec![];
 
         while self.current != Token::RightSq {
@@ -503,8 +514,10 @@ impl Parser {
                 array_elements.push(expr);
             }
         }
+        let arr = array_expr!(array_elements);
 
-        Some(array_expr!(array_elements))
+        self.advance();
+        Some(arr)
     }
 
     fn parse_tuple(&mut self, first: Ast) -> Option<Ast> {
@@ -517,6 +530,7 @@ impl Parser {
                 exprs.push(expr);
             }
         }
+        self.advance();
 
         Some(tuple_expr!(exprs))
     }
@@ -581,7 +595,6 @@ impl Parser {
         let expr = self
             .parse_expression(Precedence::None)
             .map(|idx| Ast::Index(Box::new(obj.unwrap()), Box::new(idx), tvar()));
-        // println!("expr {:?}", expr);
 
         if self.expect_token(Token::RightSq) {
             expr
@@ -599,11 +612,16 @@ impl Parser {
             .map(|e| assignment_expr!(id.unwrap(), e))
     }
     fn parse_match_arm(&mut self) -> Option<(Ast, Ast)> {
-        println!("parse match arm: {:?}", self.current);
-        let pattern = self.parse_expression(Precedence::None)?;
+        let mut pattern = self.parse_expression(Precedence::None)?;
+        if self.expect_token(Token::If) {
+            pattern = unop_expr!(
+                Token::If,
+                tuple_expr!(vec![pattern, self.parse_expression(Precedence::None)?])
+            );
+        }
+
         if self.expect_token(Token::Pipe) {
             let expr = self.parse_expression(Precedence::None)?;
-            println!("after match arm current: {:?}", self.current);
             Some((pattern, expr))
         } else {
             panic!("Parse error, match arm needs a final expression");
@@ -612,7 +630,7 @@ impl Parser {
     fn parse_match_expression(&mut self) -> Option<Ast> {
         self.advance();
         let matched_expr = self.parse_expression(Precedence::None)?;
-        println!("matched expr {:?}", matched_expr);
+        // println!("matched expr {:?}", matched_expr);
         let mut match_arms: Vec<(Ast, Ast)> = vec![];
         while self.expect_token(Token::Bar) {
             let arm = self.parse_match_arm()?;
@@ -634,6 +652,7 @@ impl Parser {
             Token::False => self.parse_bool(false),
             Token::Identifier(id) => self.parse_id(id.clone()),
             Token::Bang | Token::Minus | Token::Plus => self.parse_prefix_expression(),
+            Token::DoubleDot => self.parse_spread_expression(),
             Token::Lp => self.parse_grouping(),
             Token::If => self.parse_conditional_expression(),
             Token::Match => self.parse_match_expression(),
@@ -695,6 +714,11 @@ impl Parser {
         Some(bool_expr!(b))
     }
     fn parse_id(&mut self, id: String) -> Option<Ast> {
+        self.advance();
+        Some(id_expr!(id))
+    }
+
+    fn parse_spread_id(&mut self, id: String) -> Option<Ast> {
         self.advance();
         Some(id_expr!(id))
     }
@@ -1106,6 +1130,21 @@ mod tests {
                 ]
             )],
             program,
+        )
+    }
+    #[test]
+    fn array_cons() {
+        let input = r#"
+        [x, ..rest]
+        "#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+        assert_eq!(
+            vec![array_expr!(vec![
+                id_expr!("x"),
+                unop_expr!(Token::DoubleDot, id_expr!("rest"))
+            ])],
+            program
         );
     }
 }

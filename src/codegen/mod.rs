@@ -11,6 +11,7 @@ mod function;
 mod lists;
 mod numeric_binop;
 mod numeric_comparison;
+mod pattern_matching;
 mod types;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -99,6 +100,21 @@ pub fn to_basic_value_enum(x: AnyValueEnum) -> BasicValueEnum {
         _ => panic!(),
     }
 }
+
+// pub fn to_basic_value<'ctx>(x: AnyValueEnum) -> impl BasicValue<'ctx> {
+//     // println!("{:?} to basic value", x);
+//     match x {
+//         AnyValueEnum::ArrayValue(v) => x.into_array_value(),
+//         AnyValueEnum::IntValue(v) => x.into_int_value(),
+//         AnyValueEnum::FloatValue(v) => v,
+//         AnyValueEnum::PointerValue(v) => v,
+//         AnyValueEnum::StructValue(v) => v,
+//         AnyValueEnum::VectorValue(v) => v,
+//         // AnyValueEnum::PointerValue(v) => v.into(),
+//         // AnyValueEnum::InstructionValue(v) => v.as
+//         _ => panic!(),
+//     }
+// }
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn compile(
         context: &'ctx Context,
@@ -422,33 +438,40 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .const_int(TryInto::try_into(*i).unwrap(), true);
                 Some(AnyValueEnum::IntValue(value))
             }
-            Ast::Integer(i) => {
-                let value = self
-                    .context
-                    .i64_type()
-                    .const_int(TryInto::try_into(*i).unwrap(), true);
-                Some(AnyValueEnum::IntValue(value))
-            }
-            Ast::Number(f) => {
-                let value = self.context.f64_type().const_float(*f);
-                Some(AnyValueEnum::FloatValue(value))
-            }
-            Ast::Bool(b) => {
-                let value = self
-                    .context
-                    .bool_type()
-                    .const_int(if *b { 1 } else { 0 }, false);
-                Some(AnyValueEnum::IntValue(value))
-            }
-            Ast::String(s) => {
-                // let value = self.context.const_string(s.as_bytes(), true);
-                // Some(AnyValueEnum::ArrayValue(value))
-
-                let value = self.builder.build_global_string_ptr(s, s);
-                Some(AnyValueEnum::PointerValue(value.as_pointer_value()))
-            }
+            Ast::Integer(i) => self.int(i),
+            Ast::Number(f) => self.float(f),
+            Ast::Bool(b) => self.bool(b),
+            Ast::String(s) => self.string(s),
+            Ast::Match(var, arms, ttype) => self.codegen_match_expr(var, arms, ttype),
             _ => None,
         }
+    }
+
+    fn int(&mut self, i: &i64) -> Option<AnyValueEnum<'ctx>> {
+        let value = self
+            .context
+            .i64_type()
+            .const_int(TryInto::try_into(*i).unwrap(), true);
+        Some(AnyValueEnum::IntValue(value))
+    }
+    fn float(&mut self, f: &f64) -> Option<AnyValueEnum<'ctx>> {
+        let value = self.context.f64_type().const_float(*f);
+        Some(AnyValueEnum::FloatValue(value))
+    }
+    fn bool(&mut self, b: &bool) -> Option<AnyValueEnum<'ctx>> {
+        let value = self
+            .context
+            .bool_type()
+            .const_int(if *b { 1 } else { 0 }, false);
+        Some(AnyValueEnum::IntValue(value))
+    }
+
+    fn string(&mut self, s: &String) -> Option<AnyValueEnum<'ctx>> {
+        // let value = self.context.const_string(s.as_bytes(), true);
+        // Some(AnyValueEnum::ArrayValue(value))
+
+        let value = self.builder.build_global_string_ptr(s, s);
+        Some(AnyValueEnum::PointerValue(value.as_pointer_value()))
     }
 }
 // impl<'a, 'ctx> Drop for Compiler<'a, 'ctx> {
