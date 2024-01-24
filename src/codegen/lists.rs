@@ -1,9 +1,9 @@
-use inkwell::types::{IntType, PointerType};
+
 use inkwell::values::{AnyValue, AnyValueEnum};
 
 use crate::parser::Ast;
-use crate::symbols::{Env, Environment, Numeric, StackFrame, Ttype};
-use crate::typecheck::{apply_substitution, update_ast_types};
+use crate::symbols::{Ttype};
+
 
 use super::{to_basic_value_enum, Compiler};
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
@@ -51,7 +51,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         obj: &Ast,
         idx: &Ast,
-        ttype: &Ttype,
+        _ttype: &Ttype,
     ) -> Option<AnyValueEnum<'ctx>> {
         let obj = self.codegen(obj)?;
         let idx = self.codegen(idx)?;

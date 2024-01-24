@@ -1,6 +1,6 @@
 use inkwell::{
     basic_block::BasicBlock,
-    values::{AnyValue, AnyValueEnum, AsValueRef, BasicValue, BasicValueEnum, IntValue, PhiValue},
+    values::{AnyValue, AnyValueEnum, AsValueRef, IntValue, PhiValue},
 };
 use llvm_sys::{
     core::LLVMAddIncoming,
@@ -8,9 +8,9 @@ use llvm_sys::{
 };
 
 use crate::parser::Ast;
-use crate::symbols::{Env, Environment, Numeric, StackFrame, Ttype};
+use crate::symbols::{Environment, Ttype};
 
-use super::{to_basic_value_enum, Compiler};
+use super::{Compiler};
 
 fn add_incoming<'ctx>(
     phi: &mut PhiValue<'ctx>,
@@ -34,7 +34,7 @@ fn add_incoming<'ctx>(
 }
 
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
-    fn match_pattern(&mut self, pattern: &Ast) -> IntValue<'ctx> {
+    fn match_pattern(&mut self, _pattern: &Ast) -> IntValue<'ctx> {
         self.int(&1).unwrap().into_int_value()
     }
     // fn process_arm(
@@ -59,7 +59,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         arms: &Vec<(Ast, Ast)>,
         ttype: &Ttype,
     ) -> Option<AnyValueEnum<'ctx>> {
-        let var = self.codegen(var)?;
+        let _var = self.codegen(var)?;
         let parent = self.current_fn()?;
         let arms: Vec<(&(Ast, Ast), BasicBlock<'ctx>)> = arms
             .iter()

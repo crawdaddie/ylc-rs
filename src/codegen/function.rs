@@ -5,11 +5,11 @@ use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum, FunctionValue,
 };
 
-use super::{to_basic_value_enum, Compiler, GenericFns, Symbol};
+use super::{to_basic_value_enum, Compiler, Symbol};
 
 use crate::parser::Ast;
-use crate::symbols::{Env, Environment, Numeric, StackFrame, Ttype};
-use crate::typecheck::{apply_substitution, update_ast_types};
+use crate::symbols::{Environment, Numeric, Ttype};
+use crate::typecheck::{update_ast_types};
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num

@@ -1,4 +1,4 @@
-use std::error::Error;
+
 
 use crate::{
     lexer::Token,
@@ -260,7 +260,7 @@ impl ConstraintGenerator {
 
             Ast::List(exprs, ttype) => {
                 if exprs.is_empty() {
-                    ()
+                    
                 } else {
                     for e in exprs {
                         self.generate_constraints(e);

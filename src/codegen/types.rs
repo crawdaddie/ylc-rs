@@ -1,5 +1,5 @@
 use inkwell::{
-    types::{AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     AddressSpace,
 };
 

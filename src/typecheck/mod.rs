@@ -33,7 +33,7 @@ fn substitute(ttype: &mut Ttype, subs: &Substitutions) {
             }
         }
         Ttype::List(t) => substitute(t, subs),
-        Ttype::Nth(t, i) => substitute(t, subs),
+        Ttype::Nth(t, _i) => substitute(t, subs),
         _ => (),
     }
 }
@@ -41,7 +41,7 @@ fn substitute(ttype: &mut Ttype, subs: &Substitutions) {
 pub fn update_ast_types(ast: &mut Ast, subs: &Substitutions) {
     match ast {
         Ast::Let(_id, _type_expr, Some(value)) => update_ast_types(&mut *value, subs),
-        Ast::FnDeclaration(id, fn_expr) => {
+        Ast::FnDeclaration(_id, fn_expr) => {
             update_ast_types(&mut *fn_expr, subs);
         }
         Ast::TypeDeclaration(_id, _type_expr) => {}
@@ -108,7 +108,7 @@ pub fn update_ast_types(ast: &mut Ast, subs: &Substitutions) {
                 }
             }
         }
-        Ast::Call(ref mut callee_box, ref mut params_vec, ttype) => {
+        Ast::Call(ref mut callee_box, ref mut params_vec, _ttype) => {
             update_ast_types(&mut *callee_box, subs);
             for a in &mut *params_vec {
                 update_ast_types(a, subs);

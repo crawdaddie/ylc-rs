@@ -3,8 +3,8 @@ use crate::parser::{Ast, Program};
 use crate::symbols::{max_numeric_type, Env, Environment, Numeric, StackFrame, Ttype};
 use std::collections::HashMap;
 
-use llvm_sys::core::{LLVMConstArray, LLVMTypeOf};
-use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
+use llvm_sys::core::{LLVMTypeOf};
+use llvm_sys::prelude::{LLVMTypeRef};
 
 mod conditional;
 mod function;
@@ -17,10 +17,9 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{AsTypeRef, BasicType, BasicTypeEnum, FunctionType, IntType, PointerType};
+use inkwell::types::{BasicTypeEnum};
 use inkwell::values::{
-    AnyValue, AnyValueEnum, ArrayValue, AsValueRef, BasicValue, BasicValueEnum, FunctionValue,
-    IntValue, PointerValue,
+    AnyValue, AnyValueEnum, AsValueRef, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
 };
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
@@ -399,7 +398,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
                 _ => None,
             },
-            Ast::Tuple(exprs, ttype) => {
+            Ast::Tuple(exprs, _ttype) => {
                 let es: Vec<AnyValueEnum> =
                     exprs.iter().map(|e| self.codegen(e).unwrap()).collect();
                 let struct_val =

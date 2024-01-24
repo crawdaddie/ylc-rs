@@ -12,7 +12,7 @@ use inkwell::passes::PassManager;
 use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
 };
-use inkwell::types::BasicTypeEnum;
+
 use inkwell::OptimizationLevel;
 use parser::Program;
 mod codegen;

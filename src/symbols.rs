@@ -1,10 +1,7 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use inkwell::{
-    types::AnyTypeEnum,
-    values::{AnyValueEnum, BasicValueEnum},
-};
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
@@ -172,7 +169,7 @@ impl Env<Symbol> {
         Self { stack }
     }
 
-    pub(crate) fn insert(&self, k: &str, vv: Symbol) {
+    pub(crate) fn insert(&self, _k: &str, _vv: Symbol) {
         todo!()
     }
 }
