@@ -175,7 +175,7 @@ pub enum Ast {
     Fn(Vec<Ast>, Vec<Ast>, Ttype),
     Call(Box<Ast>, Vec<Ast>, Ttype),
     If(Box<Ast>, Vec<Ast>, Option<Vec<Ast>>, Ttype),
-    Match(Box<Ast>, Vec<(Ast, Ast)>, Ttype),
+    Match(Box<Ast>, Vec<(Ast, Vec<Ast>)>, Ttype),
     VarArg,
 
     // literals
@@ -185,6 +185,7 @@ pub enum Ast {
     Bool(bool),
     String(String),
 }
+pub type MatchArm = (Ast, Vec<Ast>);
 
 impl Ast {
     pub fn ttype(&self) -> Ttype {
@@ -329,6 +330,25 @@ impl Parser {
         }
         body
     }
+
+    fn parse_match_body(&mut self) -> Vec<Ast> {
+        let mut body = vec![];
+        if self.current != Token::RightBrace {
+            // if match body expr doesn't start with a { then it's a single expression and the {}
+            // can be omitted
+            let expr = self.parse_expression(Precedence::None);
+            body.push(expr.unwrap());
+        } else {
+            while self.current != Token::RightBrace {
+                // println!("parse Match body: {:?}", self.current);
+                match self.parse_statement() {
+                    Some(stmt) => body.push(stmt),
+                    None => self.advance(),
+                }
+            }
+        }
+        body
+    }
     fn parse_statement(&mut self) -> Option<Ast> {
         match &self.current {
             Token::Let => self.parse_let(),
@@ -370,15 +390,17 @@ impl Parser {
         //   Box<Ast>
         // )
         //
-        let type_param =
-            if self.expect_token(Token::Colon) {
-                self.parse_type_expression()
-            } else {
-                None
-            };
+        let type_param = if self.expect_token(Token::Colon) {
+            self.parse_type_expression()
+        } else {
+            None
+        };
         if self.expect_token(Token::Assignment) {
             match self.current {
-                Token::Fn => Some(Ast::FnDeclaration(id, Box::new(self.parse_fn_expression()?))),
+                Token::Fn => Some(Ast::FnDeclaration(
+                    id,
+                    Box::new(self.parse_fn_expression()?),
+                )),
                 _ => Some(Ast::Let(
                     id,
                     type_param,
@@ -449,12 +471,11 @@ impl Parser {
         } else {
             tvar()
         };
-        let body =
-            if self.current == Token::LeftBrace {
-                self.parse_body()
-            } else {
-                vec![]
-            };
+        let body = if self.current == Token::LeftBrace {
+            self.parse_body()
+        } else {
+            vec![]
+        };
 
         let mut fn_type: Vec<Ttype> = params.iter().map(|x| x.ttype()).collect();
         fn_type.push(return_type);
@@ -611,7 +632,7 @@ impl Parser {
         self.parse_expression(Precedence::None)
             .map(|e| assignment_expr!(id.unwrap(), e))
     }
-    fn parse_match_arm(&mut self) -> Option<(Ast, Ast)> {
+    fn parse_match_arm(&mut self) -> Option<MatchArm> {
         let mut pattern = self.parse_expression(Precedence::None)?;
         if self.expect_token(Token::If) {
             pattern = unop_expr!(
@@ -621,7 +642,7 @@ impl Parser {
         }
 
         if self.expect_token(Token::Pipe) {
-            let expr = self.parse_expression(Precedence::None)?;
+            let expr = self.parse_match_body();
             Some((pattern, expr))
         } else {
             panic!("Parse error, match arm needs a final expression");
@@ -631,7 +652,7 @@ impl Parser {
         self.advance();
         let matched_expr = self.parse_expression(Precedence::None)?;
         // println!("matched expr {:?}", matched_expr);
-        let mut match_arms: Vec<(Ast, Ast)> = vec![];
+        let mut match_arms: Vec<MatchArm> = vec![];
         while self.expect_token(Token::Bar) {
             let arm = self.parse_match_arm()?;
             // println!("expr {:?} cur: {:?}", expr, self.current);
@@ -803,33 +824,32 @@ mod tests {
 
     #[test]
     fn math_exprs() {
-        let tests =
-            vec![
-                (
-                    r#"1 + 7.0"#,
-                    binop_expr!(Token::Plus, int_expr!(1), num_expr!(7.0)),
+        let tests = vec![
+            (
+                r#"1 + 7.0"#,
+                binop_expr!(Token::Plus, int_expr!(1), num_expr!(7.0)),
+            ),
+            (
+                r#"1 * (7.0 + 200)"#,
+                binop_expr!(
+                    Token::Star,
+                    int_expr!(1),
+                    binop_expr!(Token::Plus, num_expr!(7.0), int_expr!(200))
                 ),
-                (
-                    r#"1 * (7.0 + 200)"#,
+            ),
+            (
+                r#"13 * (2 + 2) + 100.0"#,
+                binop_expr!(
+                    Token::Plus,
                     binop_expr!(
                         Token::Star,
-                        int_expr!(1),
-                        binop_expr!(Token::Plus, num_expr!(7.0), int_expr!(200))
+                        int_expr!(13),
+                        binop_expr!(Token::Plus, int_expr!(2), int_expr!(2))
                     ),
+                    num_expr!(100.0)
                 ),
-                (
-                    r#"13 * (2 + 2) + 100.0"#,
-                    binop_expr!(
-                        Token::Plus,
-                        binop_expr!(
-                            Token::Star,
-                            int_expr!(13),
-                            binop_expr!(Token::Plus, int_expr!(2), int_expr!(2))
-                        ),
-                        num_expr!(100.0)
-                    ),
-                ),
-            ];
+            ),
+        ];
 
         for (input, expect) in tests {
             let mut parser = Parser::new(Lexer::new(input.into()));
@@ -1012,7 +1032,10 @@ mod tests {
         let program = parser.parse_program();
 
         assert_eq!(
-            vec![Ast::FnDeclaration("printf".into(), Box::new(Ast::Fn(vec![], vec![], tvar(),)))],
+            vec![Ast::FnDeclaration(
+                "printf".into(),
+                Box::new(Ast::Fn(vec![], vec![], tvar(),))
+            )],
             program
         );
         assert_eq!(program[0].ttype(), Ttype::Fn(vec![tint()]));
@@ -1124,9 +1147,9 @@ mod tests {
                 vec![
                     (
                         binop_expr!(Token::Gt, id_expr!("x"), int_expr!(1)),
-                        int_expr!(1)
+                        vec![int_expr!(1)]
                     ),
-                    (id_expr!("_"), int_expr!(2))
+                    (id_expr!("_"), vec![int_expr!(2)])
                 ]
             )],
             program,

@@ -1,12 +1,41 @@
-let f = fn (arg) {
-  if arg <= 1 {
-    arg + 2
-  } else {
-    arg + 7
-  }
+let printf = fn (fmt: str, ...): int 
+
+let x = 1
+let y = if ( x == 1 ) {
+  1
+} else {
+  0  
 }
 
+printf("%d\n", y)
 
-f(1.0)
-f(2)
-f(5)
+# ; ModuleID = 'ylc'
+# source_filename = "ylc"
+# 
+# @"%d\0A" = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+# 
+# define i64 @main() {
+# entry:
+#   %alloc_x = alloca i64, align 8
+#   store i64 1, ptr %alloc_x, align 4
+#   %load_x = load i64, ptr %alloc_x, align 4
+#   %load_x1 = load i64, ptr %alloc_x, align 4
+#   %tmp_eq = icmp eq i64 %load_x1, 1
+#   br i1 %tmp_eq, label %branch0, label %branch1
+# 
+# branch0:                                          ; preds = %entry
+#   br label %continue
+# 
+# branch1:                                          ; preds = %entry
+#   br label %continue
+# 
+# continue:                                         ; preds = %branch1, %branch0
+#   %iftmp = phi i64 [ 1, %branch0 ], [ 0, %branch1 ]
+#   %alloc_y = alloca i64, align 8
+#   store i64 %iftmp, ptr %alloc_y, align 4
+#   %load_y = load i64, ptr %alloc_y, align 4
+#   %call = call i64 (ptr, ...) @printf(ptr @"%d\0A", i64 %load_y)
+#   ret i64 %call
+# }
+# 
+# declare i64 @printf(ptr %fmt, ...)

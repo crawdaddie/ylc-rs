@@ -139,15 +139,13 @@ impl Lexer {
                 _ => Token::Assignment,
             },
             '+' => Token::Plus,
-            '-' => {
-                match self.peek() {
-                    '>' => {
-                        self.advance(1);
-                        Token::Pipe
-                    }
-                    _ => Token::Minus,
+            '-' => match self.peek() {
+                '>' => {
+                    self.advance(1);
+                    Token::Pipe
                 }
-            }
+                _ => Token::Minus,
+            },
             '/' => Token::Slash,
             '*' => Token::Star,
             ',' => Token::Comma,
@@ -159,29 +157,25 @@ impl Lexer {
             '[' => Token::LeftSq,
             ']' => Token::RightSq,
             '%' => Token::Modulo,
-            '|' => {
-                match self.peek() {
-                    '|' => {
-                        self.advance(1);
-                        Token::LogicalOr
-                    }
-                    _ => Token::Bar,
+            '|' => match self.peek() {
+                '|' => {
+                    self.advance(1);
+                    Token::LogicalOr
                 }
-            }
+                _ => Token::Bar,
+            },
             '\n' => {
                 self.col = 0;
                 self.line += 1;
                 Token::Nl
             }
-            '!' => {
-                match self.peek() {
-                    '=' => {
-                        self.advance(1);
-                        Token::NotEqual
-                    }
-                    _ => Token::Bang,
+            '!' => match self.peek() {
+                '=' => {
+                    self.advance(1);
+                    Token::NotEqual
                 }
-            }
+                _ => Token::Bang,
+            },
             '?' => Token::Question,
             '.' => {
                 let peek1 = self.peek();
@@ -207,25 +201,21 @@ impl Lexer {
                 _ => Token::Ampersand,
             },
 
-            '<' => {
-                match self.peek() {
-                    '=' => {
-                        self.advance(1);
-                        Token::Lte
-                    }
-                    _ => Token::Lt,
+            '<' => match self.peek() {
+                '=' => {
+                    self.advance(1);
+                    Token::Lte
                 }
-            }
+                _ => Token::Lt,
+            },
 
-            '>' => {
-                match self.peek() {
-                    '=' => {
-                        self.advance(1);
-                        Token::Gte
-                    }
-                    _ => Token::Gt,
+            '>' => match self.peek() {
+                '=' => {
+                    self.advance(1);
+                    Token::Gte
                 }
-            }
+                _ => Token::Gt,
+            },
 
             '"' => self.scan_string(),
             '\'' => self.scan_char(),

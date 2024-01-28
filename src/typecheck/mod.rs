@@ -231,7 +231,9 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             for (pattern, expr) in arms {
                 env.push();
                 update_types(pattern, subs, env);
-                update_types(expr, subs, env);
+                for sub_expr in expr.iter_mut() {
+                    update_types(sub_expr, subs, env);
+                }
                 env.pop();
             }
             apply_substitution(ttype, subs);

@@ -100,7 +100,8 @@ fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
     fpm.initialize();
     let _main_fn = Compiler::compile(&context, &builder, &fpm, &module, program)?;
     module.print_to_stderr();
-    write_to_object_file(&module, "./object")?;
+
+    let _x = write_to_object_file(&module, "./object");
     link("./object", "exe");
     Ok(())
 }

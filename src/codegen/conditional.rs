@@ -14,9 +14,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> Option<AnyValueEnum<'ctx>> {
         let parent = self.current_fn()?;
 
-        let then_bb = self.context.append_basic_block(*parent, "then");
-        let else_bb = self.context.append_basic_block(*parent, "else");
-        let cont_bb = self.context.append_basic_block(*parent, "ifcont");
+        let then_bb = self.context.append_basic_block(*parent, "branch0");
+        let else_bb = self.context.append_basic_block(*parent, "branch1");
+        let cont_bb = self.context.append_basic_block(*parent, "continue");
 
         self.builder
             .build_conditional_branch(condition, then_bb, else_bb);

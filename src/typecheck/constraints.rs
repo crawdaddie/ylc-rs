@@ -1,8 +1,6 @@
-
-
 use crate::{
     lexer::Token,
-    parser::{Ast, Identifier},
+    parser::{Ast, Identifier, MatchArm},
     symbols::{max_numeric_type, tint, Env, Environment, Symbol, Ttype},
 };
 
@@ -151,11 +149,13 @@ impl ConstraintGenerator {
         self.push_constraint(pattern.ttype(), match_var.ttype());
         self.generate_constraints(condition);
     }
-    fn match_constraints(&mut self, var: &Ast, arms: &Vec<(Ast, Ast)>, ttype: Ttype) {
+    fn match_constraints(&mut self, var: &Ast, arms: &Vec<MatchArm>, ttype: Ttype) {
         self.generate_constraints(var);
         let (_, first_expr) = arms.first().unwrap();
-        for (pattern, expr) in arms {
+        let arm_expr_type = first_expr.last().unwrap().ttype();
+        for (pattern, block) in arms {
             self.env.push();
+
             match pattern {
                 Ast::List(items, _) => {
                     self.destructure_constraints(items, var);
@@ -168,13 +168,16 @@ impl ConstraintGenerator {
                 Ast::Id(x, _) if x == "_" => {}
                 _ => {}
             }
-            self.generate_constraints(expr);
+
+            for expr in block.iter() {
+                self.generate_constraints(expr);
+            }
+            self.push_constraint(block.last().unwrap().ttype(), arm_expr_type.clone());
             // self.push_constraint(pattern.ttype(), Ttype::Bool);
-            self.push_constraint(expr.ttype(), first_expr.ttype());
             self.env.pop();
         }
 
-        self.push_constraint(ttype, first_expr.ttype());
+        self.push_constraint(ttype, arm_expr_type);
     }
 
     pub fn generate_constraints(&mut self, ast: &Ast) {
@@ -260,7 +263,6 @@ impl ConstraintGenerator {
 
             Ast::List(exprs, ttype) => {
                 if exprs.is_empty() {
-                    
                 } else {
                     for e in exprs {
                         self.generate_constraints(e);
@@ -332,10 +334,14 @@ mod tests {
     fn constraints() {
         let program = vec![if_expr!(
             bool_expr!(true),
-            vec![tuple_expr!(vec![int_expr!(1), int_expr!(2)], tvar("tuple1"))],
-            Some(vec![
-                tuple_expr!(vec![int_expr!(3), int_expr!(4)], tvar("tuple2"))
-            ]),
+            vec![tuple_expr!(
+                vec![int_expr!(1), int_expr!(2)],
+                tvar("tuple1")
+            )],
+            Some(vec![tuple_expr!(
+                vec![int_expr!(3), int_expr!(4)],
+                tvar("tuple2")
+            )]),
             tvar("if_expr_type")
         )];
         let mut cg = ConstraintGenerator::new();
@@ -383,7 +389,12 @@ mod tests {
             ),
             // Binop
             (
-                vec![binop_expr!(Token::Plus, int_expr!(1), int_expr!(2), tvar("+"))],
+                vec![binop_expr!(
+                    Token::Plus,
+                    int_expr!(1),
+                    int_expr!(2),
+                    tvar("+")
+                )],
                 vec![(tvar("+"), tint())],
             ),
             // Binop generic
