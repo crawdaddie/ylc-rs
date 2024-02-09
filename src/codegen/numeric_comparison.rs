@@ -5,7 +5,7 @@ use super::Compiler;
 
 use crate::lexer::Token;
 
-use crate::symbols::{Numeric};
+use crate::symbols::Numeric;
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num

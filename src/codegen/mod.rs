@@ -15,12 +15,11 @@ mod pattern_matching;
 mod types;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::module::Module;
-use inkwell::passes::PassManager;
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{
     AnyValue, AnyValueEnum, AsValueRef, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
 };
+use inkwell::{module::Module, passes::PassManager};
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 pub enum Symbol<'ctx> {

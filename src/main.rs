@@ -70,7 +70,10 @@ pub fn write_to_object_file(module: &Module, output_filename: &str) -> Result<()
 
     target_machine
         .write_to_file(module, FileType::Object, output_filename.as_ref())
-        .map_err(|e| format!("{:?}", e))
+        .map_err(|e| {
+            println!("error writing object file {}", e);
+            format!("{:?}", e)
+        })
 }
 pub fn link(obj_file: &str, exe_name: &str) {
     let _ = Command::new("clang")
@@ -101,7 +104,7 @@ fn compile_program(program: &Program) -> Result<(), Box<dyn Error>> {
     let _main_fn = Compiler::compile(&context, &builder, &fpm, &module, program)?;
     module.print_to_stderr();
 
-    let _x = write_to_object_file(&module, "./object");
+    write_to_object_file(&module, "./object")?;
     link("./object", "exe");
     Ok(())
 }

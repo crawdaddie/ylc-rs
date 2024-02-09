@@ -83,7 +83,7 @@ macro_rules! binop_expr {
 }
 
 macro_rules! unop_expr {
-    ($op:expr,$operand:expr) => {
+    ($op:expr, $operand:expr) => {
         Ast::Unop($op, Box::new($operand), tvar())
     };
 
@@ -333,19 +333,19 @@ impl Parser {
 
     fn parse_match_body(&mut self) -> Vec<Ast> {
         let mut body = vec![];
-        if self.current != Token::RightBrace {
+        if self.current != Token::LeftBrace {
             // if match body expr doesn't start with a { then it's a single expression and the {}
             // can be omitted
             let expr = self.parse_expression(Precedence::None);
             body.push(expr.unwrap());
         } else {
             while self.current != Token::RightBrace {
-                // println!("parse Match body: {:?}", self.current);
                 match self.parse_statement() {
                     Some(stmt) => body.push(stmt),
                     None => self.advance(),
                 }
             }
+            self.advance();
         }
         body
     }
@@ -1148,6 +1148,37 @@ mod tests {
                     (
                         binop_expr!(Token::Gt, id_expr!("x"), int_expr!(1)),
                         vec![int_expr!(1)]
+                    ),
+                    (id_expr!("_"), vec![int_expr!(2)])
+                ]
+            )],
+            program,
+        )
+    }
+
+    #[test]
+    fn test_match_complex() {
+        let input = r#"
+        match x
+        | x if x > 1 -> {1 + x}
+        | _ -> 2
+        "#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(
+            vec![match_expr!(
+                id_expr!("x"),
+                vec![
+                    (
+                        unop_expr!(
+                            Token::If,
+                            tuple_expr!(vec![
+                                id_expr!("x"),
+                                binop_expr!(Token::Gt, id_expr!("x"), int_expr!(1))
+                            ])
+                        ),
+                        vec![binop_expr!(Token::Plus, int_expr!(1), id_expr!("x"))]
                     ),
                     (id_expr!("_"), vec![int_expr!(2)])
                 ]
