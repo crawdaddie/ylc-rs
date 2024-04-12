@@ -7,10 +7,9 @@ compiler built in Rust with LLVM as a backend via [inkwell-rs](https://github.co
 `cargo run -- examples/pattern_match.ylc`  
 currently the compiler only supports building object files and linking to create an executable   
 (named 'exe' by default for now)   
-implementation of JIT and REPL is blocked by [issue](https://github.com/TheDan64/inkwell/issues/452)   
 
 # tests
-cargo run test
+cargo test
 
 # features
 - [x] arrays
