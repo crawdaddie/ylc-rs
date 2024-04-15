@@ -1,9 +1,9 @@
 extern crate inkwell;
-extern crate ylc_rs;
+extern crate ylc;
 
 use clap::Parser;
-use ylc_rs::codegen::Compiler;
-use ylc_rs::util::read_file_to_string;
+use ylc::codegen::Compiler;
+use ylc::util::read_file_to_string;
 // use dylib::DynamicLibrary;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -13,7 +13,7 @@ use inkwell::targets::{
 };
 
 use inkwell::OptimizationLevel;
-use ylc_rs::parser::Program;
+use ylc::parser::Program;
 
 use std::error::Error;
 use std::process::Command;
@@ -153,8 +153,8 @@ fn repl() -> Result<(), io::Error> {
             Ok(line) => {
                 let _ = rl.add_history_entry(line.as_str());
 
-                let mut program = ylc_rs::parser::parse(line);
-                ylc_rs::typecheck::infer_types(&mut program);
+                let mut program = ylc::parser::parse(line);
+                ylc::typecheck::infer_types(&mut program);
 
                 let main_name = format!("main.{}", iter);
                 match compile_interactive(&program, &context, main_name.clone()) {
@@ -195,8 +195,8 @@ fn compile_input_file(input: Option<String>) -> Result<(), io::Error> {
         _ => panic!("no input filename"),
     };
 
-    let mut program = ylc_rs::parser::parse(input_content);
-    ylc_rs::typecheck::infer_types(&mut program);
+    let mut program = ylc::parser::parse(input_content);
+    ylc::typecheck::infer_types(&mut program);
 
     println!("\x1b[1;35mAST\n---------");
     for s in &program {

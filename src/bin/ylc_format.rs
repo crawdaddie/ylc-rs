@@ -1,9 +1,9 @@
-extern crate ylc_rs;
+extern crate ylc;
 
 use std::io::{self, Read, Write};
-use ylc_rs::lexer::Token;
-use ylc_rs::parser::{parse, Ast};
-use ylc_rs::symbols::{Numeric, Ttype};
+use ylc::lexer::Token;
+use ylc::parser::{parse, Ast};
+use ylc::symbols::{Numeric, Ttype};
 
 fn format_explicit_ttype<B: Write>(ttype: &Ttype, indent: usize, buffer: &mut B) -> () {
     match ttype {
@@ -268,7 +268,7 @@ fn main() -> Result<(), io::Error> {
 mod tests {
     use super::*;
 
-    use ylc_rs::int_expr;
+    use ylc::int_expr;
 
     #[test]
     fn test_format_ast() {
