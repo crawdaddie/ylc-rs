@@ -2,6 +2,7 @@ use crate::{
     lexer::{Lexer, Token},
     symbols::{Numeric, Ttype},
 };
+use serde::Serialize;
 
 pub static mut TVAR_COUNT: usize = 0;
 
@@ -153,7 +154,7 @@ pub enum Precedence {
 }
 
 pub type Identifier = String;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Ast {
     Let(
         Identifier,
@@ -331,6 +332,20 @@ impl Parser {
         body
     }
 
+    fn parse_lambda_body(&mut self) -> Vec<Ast> {
+        let mut body = vec![];
+        match self.parse_statement() {
+            Some(stmt) => body.push(stmt),
+            None => self.advance(),
+        }
+        if self.current == Token::Nl {
+            self.advance();
+            body
+        } else {
+            body
+        }
+    }
+
     fn parse_match_body(&mut self) -> Vec<Ast> {
         let mut body = vec![];
         if self.current != Token::LeftBrace {
@@ -437,7 +452,7 @@ impl Parser {
         self.advance();
         while self.current != Token::Rp {
             self.skip_token(Token::Comma);
-            match self.current {
+            match &self.current {
                 Token::Identifier(_) => match self.parse_typed_identifier() {
                     (p, Some(p_type)) => {
                         let t = identifier_to_type(p_type);
@@ -449,7 +464,7 @@ impl Parser {
                     params.push(Ast::VarArg);
                     self.advance();
                 }
-                _ => panic!(),
+                _ => (),
             }
         }
 
@@ -471,10 +486,12 @@ impl Parser {
         } else {
             tvar()
         };
-        let body = if self.current == Token::LeftBrace {
-            self.parse_body()
-        } else {
-            vec![]
+        println!("function expr: {:?} {:?}", self.current, self.previous);
+        let body = match self.current {
+            Token::LeftBrace => self.parse_body(),
+            // Token::Nl => vec![],
+            // _ => self.parse_lambda_body(),
+            _ => vec![],
         };
 
         let mut fn_type: Vec<Ttype> = params.iter().map(|x| x.ttype()).collect();
@@ -1181,6 +1198,34 @@ mod tests {
                         vec![binop_expr!(Token::Plus, int_expr!(1), id_expr!("x"))]
                     ),
                     (id_expr!("_"), vec![int_expr!(2)])
+                ]
+            )],
+            program,
+        )
+    }
+
+    #[test]
+    fn test_match_complex_array() {
+        let input = r#"
+        match x
+        | [] -> 1
+        | [x, ..rest] -> 2
+        "#;
+        let mut parser = Parser::new(Lexer::new(input.into()));
+        let program = parser.parse_program();
+
+        assert_eq!(
+            vec![match_expr!(
+                id_expr!("x"),
+                vec![
+                    (array_expr!(vec![]), vec![int_expr!(1)]),
+                    (
+                        array_expr!(vec![
+                            id_expr!("x"),
+                            unop_expr!(Token::DoubleDot, id_expr!("rest"))
+                        ]),
+                        vec![int_expr!(2)]
+                    )
                 ]
             )],
             program,

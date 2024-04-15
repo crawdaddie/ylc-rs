@@ -1,51 +1,14 @@
 let printf = fn (fmt: str, ...): int 
 
-let x = 1
+let x = 2
+
 
 let y = match x
-  | 1 -> 291
-  | _ -> 292
+  | 1 -> 1 
+  | 2 -> 2 
+  | 3 -> 3 
+  | _ -> 4 
+ 
 
+printf("%d\n",y)
 
-printf("%d\n", y)
-
-# ; ModuleID = 'ylc'
-# source_filename = "ylc"
-# 
-# @"%d\0A" = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
-# 
-# define i64 @main() {
-# entry:
-#   %array_alloca = alloca [2 x i64], i32 2, align 8
-#   %inbounds_gep = getelementptr inbounds [2 x i64], ptr %array_alloca, i32 0, i64 0
-#   store i64 1, ptr %inbounds_gep, align 4
-#   %inbounds_gep1 = getelementptr inbounds [2 x i64], ptr %array_alloca, i32 0, i64 1
-#   store i64 2, ptr %inbounds_gep1, align 4
-#   %alloc_x = alloca ptr, align 8
-#   store ptr %array_alloca, ptr %alloc_x, align 8
-#   %load_x = load ptr, ptr %alloc_x, align 8
-#   %match_phi = phi i64 [ %load_x2, %0 ], [ %load_x3, %1 ], [ 0, %2 ]
-#   br i64 1, label %0, label %1
-# 
-# 0:                                                ; preds = %entry
-#   br label %1
-#   %load_x2 = load ptr, ptr %alloc_x, align 8
-#   br i64 1, label %1, label %2
-# 
-# 1:                                                ; preds = %0, %0, %entry
-#   br label %2
-#   %load_x3 = load ptr, ptr %alloc_x, align 8
-#   br i64 1, label %2, label %continue
-# 
-# 2:                                                ; preds = %1, %1, %0
-#   br label %continue
-# 
-# continue:                                         ; preds = %2, %1
-#   %alloc_y = alloca i64, align 8
-#   store i64 %match_phi, ptr %alloc_y, align 4
-#   %load_y = load i64, ptr %alloc_y, align 4
-#   %call = call i64 (ptr, ...) @printf(ptr @"%d\0A", i64 %load_y)
-#   ret i64 %call
-# }
-# 
-# declare i64 @printf(ptr %fmt, ...)

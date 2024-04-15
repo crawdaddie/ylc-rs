@@ -1,4 +1,5 @@
 let printf = fn (fmt: str, ...): int 
+let sleep = fn (sec: int): int
 let arr = [
  500,
  5,
@@ -17,10 +18,18 @@ let range = fn(arr, n, max): int {
   if n >= (max - 1) {
     n
   } else {
-    range(n + 1, max)
+    range(arr, n + 1, max)
   }
 }
 
 range(arr, 0, 10)
+
+let loop = fn() {
+  printf("sleeping...\n")
+  sleep(1)
+  loop()
+}
+loop()
+
 
 

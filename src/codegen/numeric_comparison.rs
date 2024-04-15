@@ -28,6 +28,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_float_value(),
                         "tmp_lt",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
             Token::Lt => Some(
@@ -38,6 +39,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_int_value(),
                         "tmp_lt",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -49,6 +51,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_float_value(),
                         "tmp_lte",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -60,6 +63,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_int_value(),
                         "tmp_lte",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -71,6 +75,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_float_value(),
                         "tmp_gt",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -82,6 +87,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_int_value(),
                         "tmp_gt",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -93,6 +99,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_float_value(),
                         "tmp_gte",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -104,6 +111,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_int_value(),
                         "tmp_gte",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -115,6 +123,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_float_value(),
                         "tmp_eq",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 
@@ -126,6 +135,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         r.into_int_value(),
                         "tmp_eq",
                     )
+                    .unwrap()
                     .as_any_value_enum(),
             ),
 

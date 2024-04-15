@@ -63,10 +63,12 @@ impl ConstraintGenerator {
         fin.ttype()
     }
     fn fn_declaration(&mut self, id: &str, fn_expr: &Ast) {
+        // bind symbol for this function as early as
+        // possible - in the stack
+        // of the function this type will
+        // be available as a recursive reference
         self.env
-            .bind_symbol(id.to_owned(), Symbol::Function(fn_expr.ttype())); // bind symbol as early as
-                                                                            // possible - in the stack
-                                                                            // of the function this type will be available as a recursive reference
+            .bind_symbol(id.to_owned(), Symbol::Function(fn_expr.ttype()));
         self.env.push();
 
         match fn_expr {
@@ -95,6 +97,7 @@ impl ConstraintGenerator {
     fn get_function_type(&self, name: Identifier) -> Option<&Ttype> {
         match self.env.lookup(name) {
             Some(Symbol::Function(fn_type)) => Some(fn_type),
+            Some(Symbol::Variable(fn_type)) => Some(fn_type),
             _ => None,
         }
     }
@@ -135,7 +138,6 @@ impl ConstraintGenerator {
                 }
                 Ast::Unop(Token::DoubleDot, boxed_spread_id, _) => {
                     if let Ast::Id(spread, t) = *boxed_spread_id.clone() {
-                        // println!("spread {:?}", spread);
                         self.push_constraint(t.clone(), match_var.ttype());
                         self.env
                             .bind_symbol(spread.to_string(), Symbol::Variable(t.clone()))

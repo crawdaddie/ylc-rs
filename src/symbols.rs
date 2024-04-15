@@ -1,9 +1,8 @@
 use core::fmt;
+use serde::Serialize;
 use std::collections::HashMap;
 
-
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[repr(u8)]
 pub enum Numeric {
     Int8 = 0, // int8 - alias char
@@ -11,7 +10,7 @@ pub enum Numeric {
     Num = 2,  // double
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[repr(u8)]
 pub enum Ttype {
     Bool,
@@ -285,8 +284,10 @@ mod tests {
 
     #[test]
     fn generic_type_transformation() {
-        let mut generic_fn_type =
-            Ttype::Fn(vec![tvar("t0"), Ttype::MaxNumeric(vec![tvar("t0"), tint()])]);
+        let mut generic_fn_type = Ttype::Fn(vec![
+            tvar("t0"),
+            Ttype::MaxNumeric(vec![tvar("t0"), tint()]),
+        ]);
         let application_types = vec![tint()];
 
         assert_eq!(
@@ -300,7 +301,11 @@ mod tests {
         let mut generic_fn_type = Ttype::Fn(vec![
             tvar("a"),
             tvar("b"),
-            Ttype::Tuple(vec![tvar("a"), tint(), Ttype::Tuple(vec![tint(), tvar("b")])]),
+            Ttype::Tuple(vec![
+                tvar("a"),
+                tint(),
+                Ttype::Tuple(vec![tint(), tvar("b")]),
+            ]),
         ]);
         let application_types = vec![tint(), tnum()];
 

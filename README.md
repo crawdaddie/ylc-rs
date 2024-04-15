@@ -4,9 +4,12 @@ simple language for learning purposes, originally conceived as an interface for 
 compiler built in Rust with LLVM as a backend via [inkwell-rs](https://github.com/TheDan64/inkwell) (self-hosting way out of scope for now)
 
 # compile .ylc file
-`cargo run -- examples/pattern_match.ylc`  
+`cargo run -- examples/pattern_match.ylc`   
 currently the compiler only supports building object files and linking to create an executable   
 (named 'exe' by default for now)   
+
+# repl
+`cargo run -- -i`
 
 # tests
 cargo test

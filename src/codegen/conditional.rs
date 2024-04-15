@@ -45,7 +45,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let phi = self
             .builder
-            .build_phi(to_basic_value_enum(then_val).get_type(), "iftmp");
+            .build_phi(to_basic_value_enum(then_val).get_type(), "iftmp")
+            .unwrap();
 
         if let Some(else_val) = else_val {
             phi.add_incoming(&[

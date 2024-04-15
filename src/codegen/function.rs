@@ -9,7 +9,7 @@ use super::{to_basic_value_enum, Compiler, Symbol};
 
 use crate::parser::Ast;
 use crate::symbols::{Environment, Numeric, Ttype};
-use crate::typecheck::{update_ast_types};
+use crate::typecheck::update_ast_types;
 
 fn is_num(n: Numeric) -> bool {
     n == Numeric::Num
@@ -229,6 +229,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Some(
             self.builder
                 .build_call(callable_fn, argsv.as_slice(), "call")
+                .unwrap()
                 .as_any_value_enum(),
         )
     }

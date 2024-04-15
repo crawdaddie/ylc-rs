@@ -82,6 +82,7 @@ pub struct Compiler<'a, 'ctx> {
     env: Env<Symbol<'ctx>>,
     generic_fns: HashMap<String, GenericFns>,
     fn_stack: Vec<FunctionValue<'ctx>>,
+    main_name: String,
 }
 
 pub fn to_basic_value_enum(x: AnyValueEnum) -> BasicValueEnum {
@@ -120,6 +121,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         pass_manager: &'a PassManager<FunctionValue<'ctx>>,
         module: &'a Module<'ctx>,
         program: &Program,
+        main_name_arg: Option<String>,
     ) -> Result<FunctionValue<'ctx>, &'ctx str> {
         let mut compiler = Self {
             context,
@@ -129,6 +131,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             env: Env::<Symbol>::new(),
             generic_fns: HashMap::new(),
             fn_stack: vec![],
+            main_name: match main_name_arg {
+                Some(name) => name,
+                _ => "main".to_string(),
+            },
         };
         compiler.compile_program(program)
     }
@@ -163,7 +169,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_program(&mut self, program: &Program) -> Result<FunctionValue<'ctx>, &'ctx str> {
         let main_fn = self.module.add_function(
-            "main",
+            self.main_name.as_str(),
             self.type_to_llvm_fn(program.last().unwrap().ttype()),
             // self.context.void_type().fn_type(&[], false),
             None,
@@ -205,6 +211,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             BasicValueEnum::IntValue(i) if desired_cast == Numeric::Num => self
                 .builder
                 .build_signed_int_to_float(i, self.context.f64_type(), "int_to_float_cast")
+                .unwrap()
                 .as_basic_value_enum(),
             BasicValueEnum::IntValue(_i) => x,
             BasicValueEnum::FloatValue(_f) => x,
@@ -295,8 +302,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     let llvm_basic_type = BasicTypeEnum::new(type_ref);
                     let alloc = self
                         .builder
-                        .build_alloca(llvm_basic_type, format!("alloc_{id}").as_str());
-                    self.builder
+                        .build_alloca(llvm_basic_type, format!("alloc_{id}").as_str())
+                        .unwrap();
+                    let _ = self
+                        .builder
                         .build_store(alloc, to_basic_value_enum(llvm_value));
 
                     self.env.bind_symbol(
@@ -355,7 +364,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                                 format!("load_{id}").as_str(),
                             );
 
-                            Some(load.as_any_value_enum())
+                            Some(load.unwrap().as_any_value_enum())
                         }
                         _ => None,
                     }
@@ -375,6 +384,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         Some(
                             self.builder
                                 .build_float_sub(zero, op.into_float_value(), "negative_num")
+                                .unwrap()
                                 .as_any_value_enum(),
                         )
                     } else {
@@ -382,6 +392,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                         Some(
                             self.builder
                                 .build_int_sub(zero, op.into_int_value(), "negative_num")
+                                .unwrap()
                                 .as_any_value_enum(),
                         )
                     }
@@ -392,6 +403,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     Some(
                         self.builder
                             .build_xor(op.into_int_value(), one, "xor")
+                            .unwrap()
                             .as_any_value_enum(),
                     )
                 }
@@ -468,7 +480,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         // Some(AnyValueEnum::ArrayValue(value))
 
         let value = self.builder.build_global_string_ptr(s, s);
-        Some(AnyValueEnum::PointerValue(value.as_pointer_value()))
+        Some(AnyValueEnum::PointerValue(
+            value.unwrap().as_pointer_value(),
+        ))
     }
 }
 // impl<'a, 'ctx> Drop for Compiler<'a, 'ctx> {
