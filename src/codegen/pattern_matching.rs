@@ -31,7 +31,7 @@ use super::{to_basic_value_enum, Compiler};
 //     }
 // }
 //
-type AssignmentList<'a> = Vec<(Ast, &'a AnyValueEnum<'a>)>;
+// type AssignmentList<'a> = Vec<(Ast, &'a AnyValueEnum<'a>)>;
 type MatchConditionResult<'a> = IntValue<'a>;
 
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
@@ -86,6 +86,23 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> MatchConditionResult<'ctx> {
         self._falsy()
     }
+    fn branch_subcondition(
+        &mut self,
+        pattern: &Ast,
+        var: &AnyValueEnum<'ctx>,
+        var_type: &Ttype,
+    ) -> MatchConditionResult<'ctx> {
+        if let Ast::Tuple(els, _) = pattern {
+            let ass = &els[0];
+            let x = self.build_branch_condition(ass, var, var_type);
+            let _subcondition = self.codegen(&els[1]).unwrap().into_int_value();
+            self.builder
+                .build_and(x, _subcondition, "PatternMatchIf")
+                .unwrap()
+        } else {
+            self._falsy()
+        }
+    }
 
     fn build_branch_condition(
         &mut self,
@@ -93,7 +110,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         var: &AnyValueEnum<'ctx>,
         var_type: &Ttype,
     ) -> MatchConditionResult<'ctx> {
-        println!("build branch {:?} -> {:?} [{:?}]", pattern, var, var_type);
+        // println!("build branch {:?} -> {:?} [{:?}]", pattern, var, var_type);
         match pattern {
             Ast::Int8(_i8) => self.eq(pattern, var, var_type),
             Ast::Integer(_i64) => self.eq(pattern, var, var_type),
@@ -104,10 +121,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.bind_name(x, var, var_type);
                 self._truthy()
             }
-            Ast::Unop(tok, expr, t) => match tok {
-                // &Token::If => {
-                //     // self.
-                // }
+            Ast::Unop(tok, expr, _t) => match tok {
+                &Token::If => self.branch_subcondition(expr, var, var_type),
                 _ => self._falsy(),
             },
             _ => self._falsy(),

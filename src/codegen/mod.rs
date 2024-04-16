@@ -268,7 +268,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Token::Equality | Token::Gt | Token::Gte | Token::Lt | Token::Lte => {
                 let ltype = left.ttype();
                 let rtype = left.ttype();
-                let max_type = max_numeric_type(ltype, rtype);
+                let max_type = max_numeric_type(ltype.clone(), rtype.clone());
                 if let Ttype::Numeric(desired_cast) = max_type {
                     let mut l = to_basic_value_enum(self.codegen(left).unwrap());
                     let mut r = to_basic_value_enum(self.codegen(right).unwrap());
@@ -276,7 +276,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     r = self.cast_numeric(r, desired_cast);
                     self.codegen_numeric_comparison(token, l, r, desired_cast)
                 } else {
-                    panic!("attempt to compare values with non-numeric types")
+                    panic!(
+                        "attempt to compare values with non-numeric types {:?} {:?}",
+                        ltype, rtype
+                    )
                 }
             }
             _ => None,

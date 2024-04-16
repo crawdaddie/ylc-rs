@@ -317,7 +317,8 @@ mod tests {
     use std::collections::HashSet;
 
     use crate::{
-        binop_expr, bool_expr, call_expr, id_expr, if_expr, int_expr, symbols::tvar, tuple_expr,
+        binop_expr, bool_expr, call_expr, id_expr, if_expr, int_expr, match_expr, symbols::tvar,
+        tuple_expr,
     };
 
     use super::*;
@@ -472,5 +473,22 @@ mod tests {
             set.insert(c);
         }
         assert!(set.contains(&(tvar("call_expr"), tvar("fn_ret"))))
+    }
+    #[test]
+    fn match_constraints() {
+        // let match_ast = match_expr!(id_expr!("x"), vec![]);
+        // match_expr!(
+        //     id_expr!("x"),
+        //     vec![
+        //         (array_expr!(vec![]), vec![int_expr!(1)]),
+        //         (
+        //             array_expr!(vec![
+        //                 id_expr!("x"),
+        //                 unop_expr!(Token::DoubleDot, id_expr!("rest"))
+        //             ]),
+        //             vec![int_expr!(2)]
+        //         )
+        //     ]
+        // );
     }
 }

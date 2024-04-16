@@ -102,6 +102,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .as_any_value_enum(),
             ),
 
+            Token::Gt => Some(
+                self.builder
+                    .build_int_compare(
+                        IntPredicate::SGT,
+                        l.into_int_value(),
+                        r.into_int_value(),
+                        "tmp_modulo",
+                    )
+                    .unwrap()
+                    .as_any_value_enum(),
+            ),
+
             _ => None,
         }
     }
