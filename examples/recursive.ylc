@@ -1,35 +1,37 @@
-let printf = fn (fmt: str, ...): int 
+let printf = fn (fmt: str, ...): int
+
 let sleep = fn (sec: int): int
+
 let arr = [
- 500,
- 5,
- 502,
- 503,
- 499,
- 800,
- 801,
- 802,
- 803,
- 804,
+	500, 
+	5, 
+	502, 
+	503, 
+	499, 
+	800, 
+	801, 
+	802,
+  803, 
+	804, 
 ]
 
-let range = fn(arr, n, max): int {
-  printf("%d\n", arr[n])
-  if n >= (max - 1) {
-    n
-  } else {
-    range(arr, n + 1, max)
-  }
+let range = fn (arr, n, max): int {
+  printf("%d\n", arr[n]) 
+	if n >= max - 1 {
+		n 
+	} else  {
+		range(arr, n + 1, max) 
+	} 
 }
 
 range(arr, 0, 10)
 
-let loop = fn() {
-  printf("sleeping...\n")
-  sleep(1)
-  loop()
+let loop = fn () {
+	printf("sleeping...\n") 
+	sleep(1) 
+	loop() 
 }
-loop()
 
+loop()
 
 

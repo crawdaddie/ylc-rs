@@ -486,7 +486,6 @@ impl Parser {
         } else {
             tvar()
         };
-        println!("function expr: {:?} {:?}", self.current, self.previous);
         let body = match self.current {
             Token::LeftBrace => self.parse_body(),
             // Token::Nl => vec![],

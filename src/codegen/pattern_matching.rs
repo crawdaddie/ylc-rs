@@ -32,7 +32,7 @@ use super::{to_basic_value_enum, Compiler};
 // }
 //
 type AssignmentList<'a> = Vec<(Ast, &'a AnyValueEnum<'a>)>;
-type MatchConditionResult<'a> = (IntValue<'a>, Option<AssignmentList<'a>>);
+type MatchConditionResult<'a> = IntValue<'a>;
 
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
     fn add_to_phi(&mut self, phi: PhiValue, incoming: Vec<(LLVMValueRef, LLVMBasicBlockRef)>) {
@@ -69,6 +69,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             panic!("attempt to compare values with non-numeric types")
         }
     }
+    fn _falsy(&mut self) -> IntValue<'ctx> {
+        self.int(&0).unwrap().into_int_value()
+    }
+
+    fn _truthy(&mut self) -> IntValue<'ctx> {
+        self.int(&1).unwrap().into_int_value()
+    }
+
     fn match_list(
         &mut self,
         members: &Vec<Ast>,
@@ -76,8 +84,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         var: &AnyValueEnum<'ctx>,
         var_type: &Ttype,
     ) -> MatchConditionResult<'ctx> {
-        (self.int(&0).unwrap().into_int_value(), None)
+        self._falsy()
     }
+
     fn build_branch_condition(
         &mut self,
         pattern: &Ast,
@@ -86,19 +95,22 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> MatchConditionResult<'ctx> {
         println!("build branch {:?} -> {:?} [{:?}]", pattern, var, var_type);
         match pattern {
-            Ast::Int8(_i8) => (self.eq(pattern, var, var_type), None),
-            Ast::Integer(_i64) => (self.eq(pattern, var, var_type), None),
-            Ast::Number(_f64) => (self.eq(pattern, var, var_type), None),
-            Ast::Bool(_bool) => (self.eq(pattern, var, var_type), None),
+            Ast::Int8(_i8) => self.eq(pattern, var, var_type),
+            Ast::Integer(_i64) => self.eq(pattern, var, var_type),
+            Ast::Number(_f64) => self.eq(pattern, var, var_type),
+            Ast::Bool(_bool) => self.eq(pattern, var, var_type),
             Ast::List(members, list_type) => self.match_list(members, list_type, var, var_type),
+            Ast::Id(x, _t) => {
+                self.bind_name(x, var, var_type);
+                self._truthy()
+            }
             Ast::Unop(tok, expr, t) => match tok {
                 // &Token::If => {
                 //     // self.
-                //
                 // }
-                _ => (self.int(&0).unwrap().into_int_value(), None),
+                _ => self._falsy(),
             },
-            _ => (self.int(&0).unwrap().into_int_value(), None),
+            _ => self._falsy(),
         }
     }
     fn build_default_pattern(
@@ -150,8 +162,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     // NORMAL BRANCH
                     let ((pattern_ast, branch_ast), branch_block) = branch;
                     let (_, next_block) = next;
-                    let (branch_cond, _) =
-                        self.build_branch_condition(pattern_ast, &var, &var_type);
+                    self.env.push();
+
+                    let branch_cond = self.build_branch_condition(pattern_ast, &var, &var_type);
+
                     branch_cond.set_name(format!("Pattern{}", branch_idx).as_str());
 
                     let _ = self.builder.build_conditional_branch(
@@ -161,7 +175,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     );
                     self.builder.position_at_end(*branch_block);
 
-                    let branch_codegen = self.codegen_block(branch_ast)?;
+                    let branch_codegen = {
+                        let mut c = None;
+                        for v in branch_ast {
+                            c = self.codegen(v);
+                        }
+                        c
+                    }?;
+
+                    self.env.pop();
+
                     let codegen_val_enum = to_basic_value_enum(branch_codegen);
 
                     let _ = self.builder.build_unconditional_branch(continue_block);

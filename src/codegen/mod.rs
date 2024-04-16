@@ -30,6 +30,10 @@ pub enum Symbol<'ctx> {
     RecursiveRef,
 }
 
+/// Calling this is innately `unsafe` because there's no guarantee it doesn't
+/// do `unsafe` operations internally.
+pub type MainFunc = unsafe extern "C" fn() -> i32;
+
 impl<'ctx> Env<Symbol<'ctx>> {
     pub fn new() -> Self {
         let stack: Vec<StackFrame<Symbol<'ctx>>> = vec![];
@@ -287,6 +291,28 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.env.pop();
         c
     }
+    fn bind_name(&mut self, id: &String, llvm_value: &AnyValueEnum<'ctx>, value_type: &Ttype) {
+        unsafe {
+            let type_ref = LLVMTypeOf(llvm_value.as_value_ref());
+            let llvm_basic_type = BasicTypeEnum::new(type_ref);
+            let alloc = self
+                .builder
+                .build_alloca(llvm_basic_type, format!("alloc_{id}").as_str())
+                .unwrap();
+            let _ = self
+                .builder
+                .build_store(alloc, to_basic_value_enum(*llvm_value));
+
+            self.env.bind_symbol(
+                id.clone(),
+                Symbol::Variable(
+                    value_type.clone(),
+                    Some(alloc),
+                    Some(LLVMTypeOf(llvm_value.as_value_ref())),
+                ),
+            );
+        };
+    }
 
     fn codegen(&mut self, expr: &Ast) -> Option<AnyValueEnum<'ctx>> {
         // println!("codegen {:?}", expr);
@@ -297,27 +323,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(value), // optional immediate assignment expression
             ) => {
                 let llvm_value = self.codegen(value).unwrap();
-                unsafe {
-                    let type_ref = LLVMTypeOf(llvm_value.as_value_ref());
-                    let llvm_basic_type = BasicTypeEnum::new(type_ref);
-                    let alloc = self
-                        .builder
-                        .build_alloca(llvm_basic_type, format!("alloc_{id}").as_str())
-                        .unwrap();
-                    let _ = self
-                        .builder
-                        .build_store(alloc, to_basic_value_enum(llvm_value));
-
-                    self.env.bind_symbol(
-                        id.clone(),
-                        Symbol::Variable(
-                            value.ttype(),
-                            Some(alloc),
-                            Some(LLVMTypeOf(llvm_value.as_value_ref())),
-                        ),
-                    );
-                };
-
+                self.bind_name(id, &llvm_value, &value.ttype());
                 Some(llvm_value)
             }
 

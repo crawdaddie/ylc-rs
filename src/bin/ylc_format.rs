@@ -42,8 +42,15 @@ fn write_tabs<B: Write>(buf: &mut B, indent: usize) {
     let tabs: String = std::iter::repeat('\t').take(indent).collect();
     let _ = write!(buf, "{}", tabs);
 }
-fn format_arrayed_items<B: Write>(els: &Vec<Ast>, indent: usize, buffer: &mut B) {
+fn format_arrayed_items<B: Write>(
+    els: &Vec<Ast>,
+    begin: &str,
+    end: &str,
+    indent: usize,
+    buffer: &mut B,
+) {
     let list_len = els.len();
+    write!(buffer, "{}", begin);
 
     for (index, p) in els.iter().enumerate() {
         if list_len > 4 {
@@ -61,6 +68,8 @@ fn format_arrayed_items<B: Write>(els: &Vec<Ast>, indent: usize, buffer: &mut B)
         write!(buffer, "\n");
         write_tabs(buffer, indent);
     }
+
+    write!(buffer, "{}", end);
 }
 fn format_operator(tok: &Token) -> &str {
     match tok {
@@ -84,7 +93,20 @@ fn format_operator(tok: &Token) -> &str {
     }
 }
 
-fn format_body<B: Write>(body: &Vec<Ast>, indent: usize, buffer: &mut B) -> () {}
+fn format_body<B: Write>(body: &Vec<Ast>, indent: usize, buffer: &mut B) -> () {
+    if body.len() > 0 {
+        write!(buffer, " {{\n");
+        for l in body {
+            write_tabs(buffer, indent + 1);
+            format_ast(l, indent + 1, buffer);
+            write!(buffer, " \n");
+            // write_tabs(buffer, indent + 1);
+        }
+
+        write_tabs(buffer, indent);
+        write!(buffer, "}}");
+    }
+}
 
 fn format_ast<B: Write>(ast: &Ast, indent: usize, buffer: &mut B) -> () {
     match ast {
@@ -95,15 +117,11 @@ fn format_ast<B: Write>(ast: &Ast, indent: usize, buffer: &mut B) -> () {
         ) => {
             let _ = write!(buffer, "let {} = ", id);
             format_ast(value, indent, buffer);
-            let _ = write!(buffer, "\n");
-            write_tabs(buffer, indent);
         }
 
         Ast::Let(id, Some(t), None) => {
             let _ = write!(buffer, "let {}: ", id);
             format_explicit_ttype(t, indent, buffer);
-            let _ = write!(buffer, "\n");
-            write_tabs(buffer, indent);
         }
 
         Ast::Let(id, None, None) => {
@@ -116,9 +134,7 @@ fn format_ast<B: Write>(ast: &Ast, indent: usize, buffer: &mut B) -> () {
             format_ast(fn_expr, indent, buffer);
         }
         Ast::Fn(params, body, t) => {
-            write!(buffer, "(");
-            format_arrayed_items(params, indent, buffer);
-            write!(buffer, ")");
+            format_arrayed_items(params, "(", ")", indent, buffer);
 
             if let Ttype::Fn(fn_types) = t {
                 let ret_type = fn_types.last().unwrap();
@@ -130,19 +146,7 @@ fn format_ast<B: Write>(ast: &Ast, indent: usize, buffer: &mut B) -> () {
                     }
                 }
             }
-            if body.len() > 0 {
-                write!(buffer, " {{\n");
-                write_tabs(buffer, indent + 1);
-                for l in body {
-                    format_ast(l, indent + 1, buffer);
-                }
-
-                write!(buffer, "}}\n\n");
-                write_tabs(buffer, indent);
-            } else {
-                write!(buffer, "\n\n");
-                write_tabs(buffer, indent);
-            }
+            format_body(body, indent, buffer);
         }
 
         Ast::TypeDeclaration(id, type_expr) => (),
@@ -169,25 +173,36 @@ fn format_ast<B: Write>(ast: &Ast, indent: usize, buffer: &mut B) -> () {
             format_ast(operand_box, indent, buffer);
         }
 
-        Ast::Tuple(_, t) => (),
-
-        Ast::List(els, t) => {
-            write!(buffer, "[");
-            format_arrayed_items(els, indent, buffer);
-            write!(buffer, "]");
+        Ast::Tuple(els, t) => {
+            format_arrayed_items(els, "(", ")", indent, buffer);
         }
 
-        Ast::Index(_, _, t) => (),
+        Ast::List(els, t) => {
+            format_arrayed_items(els, "[", "]", indent, buffer);
+        }
+
+        Ast::Index(l, i, t) => {
+            format_ast(l, indent, buffer);
+            write!(buffer, "[");
+            format_ast(i, indent, buffer);
+            write!(buffer, "]");
+        }
 
         Ast::Assignment(_, _, t) => (),
 
         Ast::Call(callee, call_args, t) => {
             format_ast(callee, indent, buffer);
-            write!(buffer, "(");
-            format_arrayed_items(call_args, indent, buffer);
-            write!(buffer, ")");
+            format_arrayed_items(call_args, "(", ")", indent, buffer);
         }
-        Ast::If(_, _, _, t) => (),
+        Ast::If(cond, then, elze, t) => {
+            write!(buffer, "if ");
+            format_ast(cond, indent, buffer);
+            format_body(then, indent, buffer);
+            if let Some(elze) = elze {
+                write!(buffer, " else ");
+                format_body(elze, indent, buffer);
+            }
+        }
         Ast::Match(matched, match_arms, t) => {
             let _ = write!(buffer, "match ");
             format_ast(matched, indent, buffer);
@@ -257,10 +272,10 @@ fn main() -> Result<(), io::Error> {
 
     for s in &program {
         format_ast(s, 0, &mut io::stdout());
-        // let _ = write!(io::stdout(), "{:?}\n", s);
+        let _ = write!(io::stdout(), "\n\n");
         // print!("\n");
     }
-    write!(io::stdout(), "\n");
+    let _ = write!(io::stdout(), "\n");
     Ok(())
 }
 
@@ -301,3 +316,4 @@ mod tests {
         );
     }
 }
+
