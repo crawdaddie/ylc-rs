@@ -15,16 +15,10 @@ let arr = [
 let iter_list = fn (l): int {
 	match l
 	| [] -> 1
-	| x if x > 2 -> 2
 	| [x, ..rest] -> {
-		printf("%d\n", x)
+    x + 1
 		iter_list(rest)
 	}
-	| [1, ..rest] -> {
-		printf("found %d\n", 1)
-		1
-	}
- 
 }
 
 iter_list(arr)

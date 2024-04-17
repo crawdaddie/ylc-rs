@@ -167,6 +167,7 @@ impl ConstraintGenerator {
                         extract_conditional_pattern(conditional_pattern).unwrap();
                     self.conditional_pattern(pattern, condition, var);
                 }
+                // Ast::Id(x, _) => {}
                 Ast::Id(x, _) if x == "_" => {}
                 _ => {}
             }
@@ -317,8 +318,8 @@ mod tests {
     use std::collections::HashSet;
 
     use crate::{
-        binop_expr, bool_expr, call_expr, id_expr, if_expr, int_expr, match_expr, symbols::tvar,
-        tuple_expr,
+        array_expr, binop_expr, bool_expr, call_expr, id_expr, if_expr, int_expr, match_expr,
+        symbols::tvar, tuple_expr,
     };
 
     use super::*;
@@ -476,19 +477,6 @@ mod tests {
     }
     #[test]
     fn match_constraints() {
-        // let match_ast = match_expr!(id_expr!("x"), vec![]);
-        // match_expr!(
-        //     id_expr!("x"),
-        //     vec![
-        //         (array_expr!(vec![]), vec![int_expr!(1)]),
-        //         (
-        //             array_expr!(vec![
-        //                 id_expr!("x"),
-        //                 unop_expr!(Token::DoubleDot, id_expr!("rest"))
-        //             ]),
-        //             vec![int_expr!(2)]
-        //         )
-        //     ]
-        // );
+        // assert!(false);
     }
 }

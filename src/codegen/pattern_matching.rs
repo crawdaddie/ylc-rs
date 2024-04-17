@@ -84,6 +84,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         var: &AnyValueEnum<'ctx>,
         var_type: &Ttype,
     ) -> MatchConditionResult<'ctx> {
+        let len_destructures = members
+            .iter()
+            .filter(|el| match el {
+                Ast::Id(_, _) => true,
+                _ => false,
+            })
+            .count();
+
+        // for
+        // TODO: for each element in arrayed pattern assign to a pointer offset
+        // and handle any spread list operators
         self._falsy()
     }
     fn branch_subcondition(
@@ -127,17 +138,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             },
             _ => self._falsy(),
         }
-    }
-    fn build_default_pattern(
-        &mut self,
-        pattern_ast: &Ast,
-        var: &AnyValueEnum<'ctx>,
-        var_type: &Ttype,
-    ) {
-        println!(
-            "final branch {:?} {:?} [{:?}]",
-            pattern_ast, &var, &var_type
-        );
     }
 
     pub fn codegen_match_expr(
@@ -213,10 +213,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 None => {
                     // DEFAULT / FINAL BRANCH
                     let ((pattern_ast, branch_ast), default_block) = branch;
-                    self.build_default_pattern(pattern_ast, &var, &var_type);
+                    self.env.push();
+
+                    self.build_branch_condition(pattern_ast, &var, &var_type);
                     self.builder.position_at_end(*default_block);
 
                     let branch_codegen = self.codegen_block(branch_ast)?;
+                    self.env.pop();
                     let codegen_val_enum = to_basic_value_enum(branch_codegen);
 
                     let _ = self.builder.build_unconditional_branch(continue_block);
@@ -240,61 +243,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .unwrap();
 
         self.add_to_phi(phi, phi_incoming_vals);
+        println!("return match codegen {:?}\n", phi);
 
         Some(phi.as_any_value_enum())
-        // for (&branch, &next) in branches.iter().tuple_windows() {
-        //     println!("{:?} -- {:?}", branch.1.get_name(), next.1.get_name());
-        // }
-
-        // self.int(&291)
-
-        // let continue_block = self.context.append_basic_block(*parent, "continue");
-        //
-        // let ((pattern_ast, branch_ast), branch_block) = arms[0];
-        // let (_, next_block) = arms[1];
-        //
-        // self.builder.build_conditional_branch(
-        //     self.build_match_condition(pattern_ast),
-        //     branch_block,
-        //     next_block,
-        // );
-        // self.builder.position_at_end(branch_block);
-        // let branch_val = self.int(&291).unwrap();
-        // self.builder.build_unconditional_branch(continue_block);
-        //
-        // let phi = self
-        //     .builder
-        //     .build_phi(self.type_to_llvm_type(ttype.clone()), "match_phi");
-        //
-        // phi.add_incoming(&[(&to_basic_value_enum(branch_val), branch_block)]);
-        //
-        // Some(phi.as_any_value_enum())
-        /*
-        let incoming: Vec<(AnyValueEnum<'ctx>, &BasicBlock<'ctx>)> = arms
-            .iter()
-            .enumerate()
-            .map(|(idx, ((pattern, expr), block))| {
-                let next_arm_block = if idx == num_arms - 1 {
-                    continue_block
-                } else {
-                    arms[idx + 1].1
-                };
-                self.env.push();
-
-                let condition = self.match_pattern(pattern);
-                self.builder
-                    .build_conditional_branch(condition, *block, next_arm_block);
-                self.builder.position_at_end(*block);
-                self.builder.build_unconditional_branch(next_arm_block);
-                // incoming[idx] = (self.codegen(expr).unwrap(), block);
-                self.env.pop();
-
-                (self.codegen(expr).unwrap(), block)
-            })
-            .collect();
-
-
-        add_incoming(&mut phi, incoming);
-        */
     }
 }

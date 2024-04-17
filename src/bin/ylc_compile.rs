@@ -114,12 +114,12 @@ fn compile_input_file(input: Option<String>) -> Result<(), io::Error> {
     let mut program = ylc::parser::parse(input_content);
     ylc::typecheck::infer_types(&mut program);
 
-    println!("\x1b[1;35mAST\n---------");
-    for s in &program {
-        let json = serde_json::to_string_pretty(&s).unwrap();
-        println!("{}", json);
-    }
-    println!("\x1b[1;0m");
+    // println!("\x1b[1;35mAST\n---------");
+    // for s in &program {
+    //     let json = serde_json::to_string_pretty(&s).unwrap();
+    //     println!("{}", json);
+    // }
+    // println!("\x1b[1;0m");
 
     let _ = compile_program(&program, input_filename);
 

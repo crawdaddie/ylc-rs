@@ -355,7 +355,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Ast::TypeDeclaration(_id, _type_expr) => None,
 
             Ast::Id(id, _ttype) => {
-                // println!("id {:?}", id);
                 if let Some(sym) = self.env.lookup(id.clone()) {
                     match sym {
                         Symbol::FnParam(idx, _ttype) => {
@@ -439,6 +438,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Ast::Id(fn_name, specific_type) => {
                     let callable = self.get_callable(fn_name, &specific_type).unwrap();
                     let _is_var_arg = callable.get_type().is_var_arg();
+
                     self.compile_call(callable, args)
                 }
                 _ => None,

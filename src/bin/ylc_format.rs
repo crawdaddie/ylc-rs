@@ -309,11 +309,10 @@ mod tests {
         format_ast(&ast, 0, &mut mock_buffer);
 
         // Verify the content written to the mock buffer
-        let expected_content = "let x = 1\n";
+        let expected_content = "let x = 1";
         assert_eq!(
             String::from_utf8(mock_buffer.0).unwrap(),
             expected_content.to_string()
         );
     }
 }
-

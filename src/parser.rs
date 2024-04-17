@@ -131,7 +131,7 @@ macro_rules! match_expr {
         Ast::Match(Box::new($predicate), $arms, tvar())
     };
 
-    ($predicate: expr, $arms: expr, %var: expr) => {
+    ($predicate: expr, $arms: expr, $var: expr) => {
         Ast::Match(Box::new($predicate), $arms, $var)
     };
 }
