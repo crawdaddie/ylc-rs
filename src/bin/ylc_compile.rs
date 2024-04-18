@@ -22,23 +22,6 @@ use std::path::Path;
 
 use std::io::{self};
 
-#[derive(Default, clap::Parser, Debug)]
-struct Arguments {
-    #[clap(long, short, action)]
-    stdin: bool,
-
-    #[clap(long, short, action)]
-    compile: bool,
-
-    #[clap(long, short, action)]
-    interactive: bool,
-
-    #[clap(long, short, action)]
-    object: bool,
-
-    input: Option<String>,
-}
-
 fn transform_filepath(filepath: String) -> String {
     let basename = Path::new(&filepath).file_stem().unwrap().to_str().unwrap();
     let transformed = basename.replace(".ylc", ".exe");
@@ -71,8 +54,16 @@ pub fn write_to_object_file(module: &Module, output_filename: &str) -> Result<()
             format!("{:?}", e)
         })
 }
-pub fn link(obj_file: &str, exe_name: &str) {
-    let _ = Command::new("clang")
+pub fn link(obj_file: &str, exe_name: &str, linker_flags: Vec<String>) {
+    let mut command = Command::new("clang");
+
+    // Add linker flags
+    for flag in linker_flags {
+        command.arg(flag);
+    }
+
+    // Add other arguments
+    let _ = command
         .arg("-o")
         .arg(exe_name)
         .arg(obj_file)
@@ -80,7 +71,11 @@ pub fn link(obj_file: &str, exe_name: &str) {
         .expect("Failed to execute command");
 }
 
-fn compile_program(program: &Program, input_filename: String) -> Result<(), Box<dyn Error>> {
+fn compile_program(
+    program: &Program,
+    input_filename: String,
+    linker_flags: Vec<String>,
+) -> Result<(), Box<dyn Error>> {
     let context = Context::create();
     let module = context.create_module("ylc");
     // let ee = module.create_jit_execution_engine(OptimizationLevel::None)?;
@@ -101,11 +96,15 @@ fn compile_program(program: &Program, input_filename: String) -> Result<(), Box<
     module.print_to_stderr();
 
     write_to_object_file(&module, "./object")?;
-    link("./object", &transform_filepath(input_filename));
+    link(
+        "./object",
+        &transform_filepath(input_filename),
+        linker_flags,
+    );
     Ok(())
 }
 
-fn compile_input_file(input: Option<String>) -> Result<(), io::Error> {
+fn compile_input_file(input: Option<&String>, linker_flags: Vec<String>) -> Result<(), io::Error> {
     let (input_filename, input_content) = match input {
         Some(s) => (s.clone(), read_file_to_string(s.as_str())?),
         _ => panic!("no input filename"),
@@ -114,19 +113,36 @@ fn compile_input_file(input: Option<String>) -> Result<(), io::Error> {
     let mut program = ylc::parser::parse(input_content);
     ylc::typecheck::infer_types(&mut program);
 
-    // println!("\x1b[1;35mAST\n---------");
-    // for s in &program {
-    //     let json = serde_json::to_string_pretty(&s).unwrap();
-    //     println!("{}", json);
-    // }
-    // println!("\x1b[1;0m");
+    println!("\x1b[1;35mAST\n---------");
+    for s in &program {
+        let json = serde_json::to_string_pretty(&s).unwrap();
+        println!("{}", json);
+    }
+    println!("\x1b[1;0m");
 
-    let _ = compile_program(&program, input_filename);
+    let _ = compile_program(&program, input_filename, linker_flags);
 
     Ok(())
 }
 
 fn main() -> Result<(), io::Error> {
-    let args = Arguments::parse();
-    compile_input_file(args.input)
+    let mut linker_args = Vec::new();
+    let mut other_args = Vec::new();
+
+    for (index, arg) in std::env::args().enumerate() {
+        if index == 0 {
+            continue; // Skipping the first argument which is the program name
+        }
+
+        if arg.starts_with("-L") || arg.starts_with("-l") {
+            linker_args.push(arg.clone());
+        } else if arg.ends_with(".ylc") {
+            other_args.push(arg.clone());
+        }
+    }
+
+    let input_file = other_args.first();
+    let _ = compile_input_file(input_file, linker_args);
+
+    Ok(())
 }

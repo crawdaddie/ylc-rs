@@ -1,5 +1,6 @@
 use inkwell::{
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::IntValue,
     AddressSpace,
 };
 
@@ -7,6 +8,11 @@ use super::Compiler;
 
 use crate::symbols::{Numeric, Ttype};
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
+    pub fn uint32(&mut self, i: i32) -> IntValue<'ctx> {
+        self.context
+            .i32_type()
+            .const_int(i.try_into().unwrap(), false)
+    }
     pub fn get_type_enum(&self, t: Ttype) -> BasicMetadataTypeEnum<'ctx> {
         self.type_to_llvm_type(t).into()
         // match t {
@@ -73,8 +79,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     pub fn type_to_llvm_array_type(&self, ttype: Ttype, size: u32) -> BasicTypeEnum<'ctx> {
         match ttype {
             Ttype::Numeric(Numeric::Int) => self.context.i64_type().array_type(size).into(),
-            Ttype::Bool => self.context.bool_type().array_type(size).into(),
             Ttype::Numeric(Numeric::Num) => self.context.f64_type().array_type(size).into(),
+            Ttype::Bool => self.context.bool_type().array_type(size).into(),
             Ttype::Tuple(ts) => {
                 let llvm_types = ts
                     .iter()

@@ -430,7 +430,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 Some(struct_val.into())
             }
 
-            Ast::List(exprs, ttype) => self.build_list(exprs, ttype),
+            Ast::List(exprs, ttype) => match ttype {
+                Ttype::List(list_type) => self.build_list(exprs, list_type),
+                _ => None,
+            },
             Ast::Index(obj, idx, ttype) => self.get_list_element(obj, idx, ttype),
             Ast::Assignment(_assignee, _val, _ttype) => None,
             Ast::Fn(_params, _body, _ttype) => None,

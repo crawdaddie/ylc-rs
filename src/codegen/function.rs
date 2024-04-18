@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use inkwell::module::Linkage;
 use inkwell::types::BasicType;
 use inkwell::values::{
     AnyValue, AnyValueEnum, BasicMetadataValueEnum, BasicValueEnum, FunctionValue,
