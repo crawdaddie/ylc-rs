@@ -43,6 +43,7 @@ cargo test
     printf("%d\n", y)
     ```
 - [x] static, implicit typing
+- [ ] implicitly typed recursive functions 
 - [x] monomorphic function variants:  
     the following separate function applications: `f(1)` & `f(1.0)` will result in 
     the compilation of two separate functions `f_Int` & `f_Num`

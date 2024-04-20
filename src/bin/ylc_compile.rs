@@ -1,7 +1,6 @@
 extern crate inkwell;
 extern crate ylc;
 
-use clap::Parser;
 use ylc::codegen::Compiler;
 use ylc::util::read_file_to_string;
 // use dylib::DynamicLibrary;
@@ -83,10 +82,10 @@ fn compile_program(
     // Create FPM
     let fpm = PassManager::create(&module);
 
-    fpm.add_instruction_combining_pass();
+    // fpm.add_instruction_combining_pass();
     fpm.add_reassociate_pass();
     fpm.add_gvn_pass();
-    fpm.add_cfg_simplification_pass();
+    // fpm.add_cfg_simplification_pass();
     fpm.add_basic_alias_analysis_pass();
     fpm.add_promote_memory_to_register_pass();
     fpm.add_instruction_combining_pass();
@@ -111,14 +110,13 @@ fn compile_input_file(input: Option<&String>, linker_flags: Vec<String>) -> Resu
     };
 
     let mut program = ylc::parser::parse(input_content);
-    ylc::typecheck::infer_types(&mut program);
-
     println!("\x1b[1;35mAST\n---------");
     for s in &program {
         let json = serde_json::to_string_pretty(&s).unwrap();
         println!("{}", json);
     }
     println!("\x1b[1;0m");
+    ylc::typecheck::infer_types(&mut program);
 
     let _ = compile_program(&program, input_filename, linker_flags);
 

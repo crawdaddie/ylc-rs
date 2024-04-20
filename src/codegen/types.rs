@@ -62,6 +62,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .into()
             }
             Ttype::List(t) => self.type_to_llvm_ptr_type(*t),
+            // Ttype::Fn(t) => {},
+            // Ttype::FnRecRef(t) => {}
             _ => panic!("Type -> LLVM Type Not implemented {:?}", ttype),
         }
     }

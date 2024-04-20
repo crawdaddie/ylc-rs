@@ -1,6 +1,7 @@
 use inkwell::{
     basic_block::BasicBlock,
     values::{AnyValue, AnyValueEnum, AsValueRef, IntValue, PhiValue},
+    IntPredicate,
 };
 use llvm_sys::{
     core::LLVMAddIncoming,
@@ -80,22 +81,57 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     fn match_list(
         &mut self,
         members: &Vec<Ast>,
-        list_type: &Ttype,
+        _list_type: &Ttype,
         var: &AnyValueEnum<'ctx>,
         var_type: &Ttype,
     ) -> MatchConditionResult<'ctx> {
-        let len_destructures = members
-            .iter()
-            .filter(|el| match el {
-                Ast::Id(_, _) => true,
-                _ => false,
-            })
-            .count();
+        let list_size = self.get_list_size(var, var_type);
+        match members.len() {
+            0 => {
+                if let Some(val_len) = list_size {
+                    self.builder
+                        .build_int_compare(
+                            IntPredicate::EQ,
+                            val_len.into_int_value(),
+                            self.uint32(0),
+                            "tmp_eq",
+                        )
+                        .unwrap()
+                } else {
+                    self._falsy()
+                }
+            }
+            _ => {
+                if let Some(val_len) = list_size {
+                    let len_destructures = members
+                        .iter()
+                        .filter(|el| match el {
+                            Ast::Id(_, _) => true,
+                            _ => false,
+                        })
+                        .count();
 
-        // for
-        // TODO: for each element in arrayed pattern assign to a pointer offset
-        // and handle any spread list operators
-        self._falsy()
+                    let guard = self
+                        .builder
+                        .build_int_compare(
+                            IntPredicate::UGE,
+                            val_len.into_int_value(),
+                            self.uint32(len_destructures.try_into().unwrap()),
+                            "tmp_eq",
+                        )
+                        .unwrap();
+
+                    guard
+                } else {
+                    self._falsy()
+                }
+
+                // for
+                // TODO: for each element in arrayed pattern assign to a pointer offset
+                // and handle any spread list operators
+                // self._falsy()
+            }
+        }
     }
     fn branch_subcondition(
         &mut self,

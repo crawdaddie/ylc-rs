@@ -125,9 +125,9 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
     match ast {
         Ast::Let(_id, _type_expr, Some(value)) => update_types(&mut *value, subs, env),
         Ast::FnDeclaration(id, fn_expr) => {
-            env.bind_symbol(id.clone(), Symbol::Function(Ttype::FnRecRef));
+            env.bind_symbol(id.clone(), Symbol::Variable(Ttype::FnRecRef));
             update_types(&mut *fn_expr, subs, env);
-            env.bind_symbol(id.clone(), Symbol::Function(fn_expr.ttype()));
+            env.bind_symbol(id.clone(), Symbol::Variable(fn_expr.ttype()));
         }
         Ast::TypeDeclaration(_id, _type_expr) => {}
         Ast::Id(_id, ttype) => {
@@ -137,6 +137,9 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
             apply_substitution(ttype, subs);
             for p in params_vec {
                 update_types(p, subs, env);
+                if let Ast::Id(id, ptype) = p {
+                    env.bind_symbol(id.clone(), Symbol::Variable(ptype.clone()))
+                }
             }
             for s in body {
                 update_types(s, subs, env);
@@ -201,14 +204,14 @@ pub fn update_types(ast: &mut Ast, subs: &Substitutions, env: &mut Env<Symbol>) 
 
             if let Ast::Id(ref mut fn_name, ref mut fn_ref_type) = **callee_box {
                 let fn_type = match env.lookup(fn_name.clone()) {
-                    Some(Symbol::Function(fn_type)) if fn_type.is_generic() => {
+                    Some(Symbol::Variable(fn_type)) if fn_type.is_generic() => {
                         let arg_types = params_vec.iter().map(|x| x.ttype()).collect::<Vec<_>>();
                         let spec_fn_type = fn_type.clone().transform_generic(arg_types);
 
                         *fn_ref_type = spec_fn_type;
                         fn_ref_type
                     }
-                    Some(Symbol::Function(fn_type)) => fn_type,
+                    Some(Symbol::Variable(fn_type)) => fn_type,
                     _ => panic!("Typecheck: fn {fn_name} not found in scope"),
                 };
                 match fn_type {

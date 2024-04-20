@@ -1,7 +1,4 @@
-use inkwell::{
-    values::{AnyValue, AnyValueEnum, FunctionValue},
-    AddressSpace,
-};
+use inkwell::values::{AnyValue, AnyValueEnum};
 
 use crate::parser::Ast;
 use crate::symbols::Ttype;
@@ -65,30 +62,34 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         Some(list_struct.as_any_value_enum())
     }
-    pub fn get_list_size(&mut self, element_type: &Ttype) {
-        // let element_ptr_type = self.type_to_llvm_ptr_type(element_type.clone());
-        // let list_struct_type = self
-        //     .context
-        //     .struct_type(&[element_ptr_type, self.context.i32_type().into()], false);
-        //
-        // let size_gep = self
-        //     .builder
-        //     .build_struct_gep(
-        //         list_struct_type,
-        //         list_struct_ptr,
-        //         &[
-        //             self.context
-        //                 .i32_type()
-        //                 .const_int(1.try_into().unwrap(), false),
-        //             self.context
-        //                 .i32_type()
-        //                 .const_int(1.try_into().unwrap(), false),
-        //         ],
-        //         "list_struct_gep_size",
-        //     )
-        //     .unwrap();
-        //
-        // println!("size instruction: {:?}", size.print_to_string());
+    pub fn get_list_size(
+        &mut self,
+        var: &AnyValueEnum<'ctx>,
+        var_type: &Ttype,
+    ) -> Option<AnyValueEnum<'ctx>> {
+        if let Ttype::List(el_type) = var_type {
+            let element_ptr_type = self.type_to_llvm_ptr_type(*el_type.clone());
+            let list_struct_type = self
+                .context
+                .struct_type(&[element_ptr_type, self.context.i32_type().into()], false);
+
+            let size_gep = self
+                .builder
+                .build_struct_gep(
+                    list_struct_type,
+                    var.into_pointer_value(),
+                    1,
+                    "list_struct_gep_size",
+                )
+                .unwrap();
+            let val_len = self
+                .builder
+                .build_load(self.context.i32_type(), size_gep, "list_len")
+                .unwrap();
+            Some(val_len.as_any_value_enum())
+        } else {
+            None
+        }
     }
     pub fn get_list_element(
         &mut self,

@@ -1,11 +1,14 @@
 let printf = fn (fmt: str, ...): int 
 
 # let a = [501.000001, 502.01002 + 2, 503.20, 2.0]
-let a = [1]
+let a = [501]
 
+let compare = fn (a, bf) {
+  bf(a)
+}
 
-let x = match a 
-| [] -> 0
-| [_x, ..rest] -> 2
+let bff = fn (a) {
+  printf("hello\n")
+}
 
-printf("%d\n", x)
+printf("%d\n", compare(a, bff)) 
