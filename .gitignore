@@ -1,6 +1,7 @@
 /target
 .DS_Store
 libffi.so.dSYM
+*.so
 .ropeproject
 .mypy_cache
 /build
