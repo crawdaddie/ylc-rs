@@ -3,3 +3,4 @@
 libffi.so.dSYM
 .ropeproject
 .mypy_cache
+/build
